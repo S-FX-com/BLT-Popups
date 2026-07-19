@@ -79,12 +79,13 @@ class BLT_Popups_Render {
 		}
 
 		self::enqueue_assets();
+		// The active popup's identity, frequency, schedule and targeting are
+		// resolved authoritatively (and uncached) by the REST endpoint — never
+		// baked in here — so a switched/rescheduled popup can't go stale on a
+		// cached page.
 		self::localize(
 			array(
 				'previewMode' => false,
-				'popupId'     => (int) $active_id,
-				'frequency'   => (string) BLT_Popups_CPT::get( $active_id, 'frequency' ),
-				'frequencyDays' => (int) BLT_Popups_CPT::get( $active_id, 'frequency_days' ),
 				'restActive'  => esc_url_raw( rest_url( BLT_POPUPS_REST_NS . '/active' ) ),
 				'restTrack'   => esc_url_raw( rest_url( BLT_POPUPS_REST_NS . '/track' ) ),
 				'restNonce'   => wp_create_nonce( 'wp_rest' ),
@@ -120,13 +121,13 @@ class BLT_Popups_Render {
 	 * @return void
 	 */
 	private static function localize( array $data ) {
+		// Note: no per-visitor value (e.g. logged-in state) is localized here —
+		// it would be frozen into cached HTML under a full-page cache. Admin
+		// exclusion from analytics is handled server-side in the (uncached)
+		// /track endpoint instead.
 		$base = array(
 			'cookiePrefix' => 'blt_popup_seen_',
 			'previewMode'  => false,
-			// Excludes admins from impression/click counts client-side too:
-			// sendBeacon (used for clicks) can't carry the REST nonce, so the
-			// server can't always tell an admin from a visitor on tracking hits.
-			'isAdmin'      => current_user_can( 'manage_options' ),
 		);
 		wp_localize_script( 'blt-popups-frontend', 'bltPopups', array_merge( $base, $data ) );
 	}
@@ -196,6 +197,11 @@ class BLT_Popups_Render {
 			'maxHeightPct'   => (int) BLT_Popups_CPT::get( $post_id, 'max_height_pct' ),
 			'overlayColor'   => (string) BLT_Popups_CPT::get( $post_id, 'overlay_color' ),
 			'overlayOpacity' => (float) BLT_Popups_CPT::get( $post_id, 'overlay_opacity' ),
+			// Frequency travels with the config so the client caps against the
+			// popup actually served (fresh from REST), not a value baked into
+			// possibly-stale cached HTML.
+			'frequency'      => (string) BLT_Popups_CPT::get( $post_id, 'frequency' ),
+			'frequencyDays'  => (int) BLT_Popups_CPT::get( $post_id, 'frequency_days' ),
 		);
 	}
 
@@ -285,7 +291,10 @@ class BLT_Popups_Render {
 	public static function context_from_query() {
 		$queried_id = (int) get_queried_object_id();
 		return array(
-			'is_home'   => ( is_front_page() || is_home() ),
+			// Front page only (spec §8), matching context_from_url()'s
+			// path_is_home() — is_home() would also match a separate blog
+			// posts index and diverge from the REST-side check.
+			'is_home'   => is_front_page(),
 			'post_id'   => $queried_id,
 			'post_type' => $queried_id ? (string) get_post_type( $queried_id ) : '',
 			'path'      => isset( $_SERVER['REQUEST_URI'] ) ? esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '',

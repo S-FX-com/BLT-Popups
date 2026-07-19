@@ -89,8 +89,10 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore(release): v${V} [skip ci]"
-          git tag "v${V}"
           git pull --rebase origin main
+          # Annotated tag (not lightweight) so --follow-tags actually pushes it,
+          # and create it after the rebase so it points at the pushed commit.
+          git tag -a "v${V}" -m "v${V}"
           git push origin main --follow-tags
 
       - name: Build distribution zip

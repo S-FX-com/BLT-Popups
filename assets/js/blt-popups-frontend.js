@@ -80,7 +80,9 @@
 		if ( cfg.previewMode || ! popup ) {
 			return;
 		}
-		var days = cookieDays( cfg.frequency, cfg.frequencyDays );
+		// Use the frequency the server actually served with this popup, not a
+		// value baked into (possibly stale) cached HTML.
+		var days = cookieDays( popup.frequency, popup.frequencyDays );
 		if ( days !== false ) {
 			setCookie( cfg.cookiePrefix + popup.id, days );
 		}
@@ -91,26 +93,22 @@
 	 * ------------------------------------------------------------------ */
 
 	function track( id, type ) {
-		if ( cfg.previewMode || cfg.isAdmin || ! cfg.restTrack ) {
+		if ( cfg.previewMode || ! cfg.restTrack ) {
 			return;
 		}
-		var payload = JSON.stringify( { id: id, type: type } );
-		if ( navigator.sendBeacon ) {
-			try {
-				navigator.sendBeacon( cfg.restTrack, new Blob( [ payload ], { type: 'application/json' } ) );
-				return;
-			} catch ( e ) {
-				// Fall through to fetch.
-			}
-		}
+		// fetch(keepalive) rather than sendBeacon: it survives the page unload
+		// on a click-through AND can carry X-WP-Nonce, which lets the (uncached)
+		// /track endpoint recognise a logged-in admin and exclude them from the
+		// counts. sendBeacon cannot set headers, so the server couldn't tell an
+		// admin from a visitor.
 		try {
 			fetch( cfg.restTrack, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.restNonce || '' },
-				body: payload,
+				body: JSON.stringify( { id: id, type: type } ),
 				keepalive: true,
 				credentials: 'same-origin'
-			} );
+			} ).catch( function () {} );
 		} catch ( e ) {}
 	}
 
@@ -249,6 +247,28 @@
 		keyHandler = function ( e ) {
 			if ( e.key === 'Escape' || e.keyCode === 27 ) {
 				close( overlay, popup );
+				return;
+			}
+			// Trap Tab focus inside the modal so keyboard users can't reach the
+			// obscured background while the dialog is open (aria-modal alone
+			// doesn't affect focus order).
+			if ( e.key === 'Tab' || e.keyCode === 9 ) {
+				var focusable = modal.querySelectorAll( 'button, a[href], [tabindex]:not([tabindex="-1"])' );
+				if ( ! focusable.length ) {
+					return;
+				}
+				var first = focusable[ 0 ];
+				var last = focusable[ focusable.length - 1 ];
+				if ( e.shiftKey && document.activeElement === first ) {
+					e.preventDefault();
+					last.focus();
+				} else if ( ! e.shiftKey && document.activeElement === last ) {
+					e.preventDefault();
+					first.focus();
+				} else if ( ! modal.contains( document.activeElement ) ) {
+					e.preventDefault();
+					first.focus();
+				}
 			}
 		};
 		document.addEventListener( 'keydown', keyHandler );
@@ -275,15 +295,15 @@
 			return;
 		}
 
-		if ( ! cfg.popupId || ! cfg.restActive ) {
+		if ( ! cfg.restActive ) {
 			return;
 		}
 
-		// Frequency gate first — avoids a network call for capped visitors.
-		if ( cfg.frequency !== 'always' && getCookie( cfg.cookiePrefix + cfg.popupId ) ) {
-			return;
-		}
-
+		// Ask the (uncached) endpoint which popup — if any — is eligible right
+		// now. This is the single source of truth for identity, schedule and
+		// frequency, so a switched or rescheduled popup can't go stale on a
+		// cached page. The frequency cookie is then checked against the id the
+		// server actually returned, never a value baked into the HTML.
 		var url = cfg.restActive
 			+ ( cfg.restActive.indexOf( '?' ) === -1 ? '?' : '&' )
 			+ 'url=' + encodeURIComponent( location.href )
@@ -293,9 +313,15 @@
 		fetch( url, { credentials: 'same-origin', headers: { 'X-WP-Nonce': cfg.restNonce || '' } } )
 			.then( function ( r ) { return r.ok ? r.json() : null; } )
 			.then( function ( data ) {
-				if ( data && data.popup ) {
-					render( data.popup );
+				var popup = data && data.popup;
+				if ( ! popup ) {
+					return;
 				}
+				// Frequency cap: skip if this visitor has already seen THIS popup.
+				if ( popup.frequency !== 'always' && getCookie( cfg.cookiePrefix + popup.id ) ) {
+					return;
+				}
+				render( popup );
 			} )
 			.catch( function () {} );
 	} );

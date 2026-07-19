@@ -244,9 +244,12 @@ class BLT_Popups_Meta {
 				<legend><?php esc_html_e( 'Status', 'blt-popups' ); ?></legend>
 
 				<?php
-				$status    = $get( 'status' );
-				$active_id = BLT_Popups_Admin::get_active_id();
-				$is_active = ( $active_id === $post_id );
+				$status       = $get( 'status' );
+				$active_id    = BLT_Popups_Admin::get_active_id();
+				$is_active    = ( $active_id === $post_id );
+				// Making a popup live is a site-wide, visitor-facing action, so
+				// it is restricted to admins (matching the preview bypass).
+				$can_activate = current_user_can( 'manage_options' );
 				?>
 
 				<p class="blt-popup-field">
@@ -254,17 +257,23 @@ class BLT_Popups_Meta {
 					<select name="blt_popup_status" id="blt_popup_status">
 						<option value="draft" <?php selected( $status, 'draft' ); ?>><?php esc_html_e( 'Draft', 'blt-popups' ); ?></option>
 						<option value="inactive" <?php selected( $status, 'inactive' ); ?>><?php esc_html_e( 'Inactive', 'blt-popups' ); ?></option>
-						<option value="active" <?php selected( $status, 'active' ); ?>><?php esc_html_e( 'Active (live)', 'blt-popups' ); ?></option>
+						<?php if ( $can_activate || $is_active ) : ?>
+							<option value="active" <?php selected( $status, 'active' ); ?>><?php esc_html_e( 'Active (live)', 'blt-popups' ); ?></option>
+						<?php endif; ?>
 					</select>
 				</p>
 
 				<?php if ( $is_active ) : ?>
 					<p class="blt-popup-live-note"><?php esc_html_e( 'This popup is currently live on the site.', 'blt-popups' ); ?></p>
+				<?php elseif ( ! $can_activate ) : ?>
+					<p class="description"><?php esc_html_e( 'Only an administrator can make a popup live.', 'blt-popups' ); ?></p>
 				<?php endif; ?>
 
 				<p class="blt-popup-actions">
 					<button type="button" class="button button-secondary blt-popup-preview-btn"><?php esc_html_e( 'Preview', 'blt-popups' ); ?></button>
-					<button type="button" class="button button-primary blt-popup-activate-btn"><?php esc_html_e( 'Activate (make live)', 'blt-popups' ); ?></button>
+					<?php if ( $can_activate ) : ?>
+						<button type="button" class="button button-primary blt-popup-activate-btn"><?php esc_html_e( 'Activate (make live)', 'blt-popups' ); ?></button>
+					<?php endif; ?>
 					<?php if ( $post_id && 'auto-draft' !== $post->post_status ) : ?>
 						<a class="button button-link blt-popup-preview-site" target="_blank" rel="noopener" href="<?php echo esc_url( self::preview_url( $post_id ) ); ?>"><?php esc_html_e( 'Preview on site ↗', 'blt-popups' ); ?></a>
 					<?php endif; ?>
@@ -366,15 +375,29 @@ class BLT_Popups_Meta {
 			$fields['status']
 		);
 
+		$already_active = ( BLT_Popups_Admin::get_active_id() === (int) $post_id );
+
 		if ( BLT_Popups_CPT::STATUS_ACTIVE === $status ) {
-			// Routes through Admin so the option + sibling-deactivation stay
-			// in one place. This also writes this post's status meta = active.
-			BLT_Popups_Admin::set_active( $post_id );
+			if ( current_user_can( 'manage_options' ) ) {
+				// Routes through Admin so the option + sibling-deactivation stay
+				// in one place. This also writes this post's status meta = active.
+				BLT_Popups_Admin::set_active( $post_id );
+			} elseif ( $already_active ) {
+				// A non-admin saving the popup that is already live: keep it
+				// live (don't silently deactivate), but don't let them change
+				// the site-wide activation.
+				update_post_meta( $post_id, BLT_Popups_CPT::meta_key( 'status' ), BLT_Popups_CPT::STATUS_ACTIVE );
+			} else {
+				// Making a popup live is a site-wide, visitor-facing action, so
+				// it requires manage_options (matching the preview bypass). A
+				// non-admin's "active" request is saved as inactive instead.
+				update_post_meta( $post_id, BLT_Popups_CPT::meta_key( 'status' ), BLT_Popups_CPT::STATUS_INACTIVE );
+			}
 		} else {
 			update_post_meta( $post_id, BLT_Popups_CPT::meta_key( 'status' ), $status );
 			// If this popup was the live one and is being taken off active,
 			// clear the site-wide pointer.
-			if ( BLT_Popups_Admin::get_active_id() === $post_id ) {
+			if ( $already_active ) {
 				BLT_Popups_Admin::clear_active( $post_id );
 			}
 		}

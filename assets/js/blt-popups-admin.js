@@ -147,12 +147,20 @@
 		};
 	}
 
+	var previewKeyHandler = null;
+
 	function closePreview() {
 		var existing = $( '.blt-popup-overlay' );
 		if ( existing && existing.parentNode ) {
 			existing.parentNode.removeChild( existing );
 		}
 		document.documentElement.classList.remove( 'blt-popup-open' );
+		// Remove the Esc listener on every close path (X, outside-click, Esc)
+		// so repeated previews don't accumulate stale handlers.
+		if ( previewKeyHandler ) {
+			document.removeEventListener( 'keydown', previewKeyHandler );
+			previewKeyHandler = null;
+		}
 	}
 
 	function renderPreview() {
@@ -204,12 +212,12 @@
 				closePreview();
 			}
 		} );
-		document.addEventListener( 'keydown', function onKey( e ) {
+		previewKeyHandler = function ( e ) {
 			if ( e.key === 'Escape' || e.keyCode === 27 ) {
 				closePreview();
-				document.removeEventListener( 'keydown', onKey );
 			}
-		} );
+		};
+		document.addEventListener( 'keydown', previewKeyHandler );
 
 		document.body.appendChild( overlay );
 		document.documentElement.classList.add( 'blt-popup-open' );
