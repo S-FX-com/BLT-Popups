@@ -1,0 +1,98 @@
+/**
+ * BLT Popups — admin editor + list-table styles.
+ */
+
+/* ---- Meta box ---- */
+.blt-popup-metabox .blt-popup-group {
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	padding: 16px 20px;
+	margin: 0 0 18px;
+}
+
+.blt-popup-metabox .blt-popup-group legend {
+	padding: 0 6px;
+	font-size: 13px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #1d2327;
+}
+
+.blt-popup-field {
+	margin: 0 0 14px;
+}
+
+.blt-popup-label {
+	display: block;
+	margin-bottom: 4px;
+	font-weight: 600;
+}
+
+.blt-popup-inline {
+	display: inline-block;
+	margin: 0 16px 6px 0;
+}
+
+.blt-popup-image-preview {
+	display: block;
+	max-width: 320px;
+	margin-bottom: 10px;
+}
+
+.blt-popup-image-preview img {
+	max-width: 100%;
+	height: auto;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.blt-popup-image-preview.is-empty {
+	display: none;
+}
+
+.blt-popup-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+	margin: 12px 0 6px;
+}
+
+.blt-popup-live-note {
+	display: inline-block;
+	padding: 4px 10px;
+	border-radius: 4px;
+	background: #edfaef;
+	color: #0a5d1e;
+	font-weight: 600;
+}
+
+/* ---- Status badges (list table + live notice) ---- */
+.blt-popup-badge {
+	display: inline-block;
+	padding: 3px 10px;
+	border-radius: 12px;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1.6;
+}
+
+.blt-popup-badge-active {
+	background: #00a32a;
+	color: #ffffff;
+}
+
+.blt-popup-badge-inactive {
+	background: #dba617;
+	color: #1d2327;
+}
+
+.blt-popup-badge-draft {
+	background: #dcdcde;
+	color: #50575e;
+}
+
+.blt-popup-live-notice .blt-popup-badge {
+	margin-right: 6px;
+}

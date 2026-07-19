@@ -1,0 +1,126 @@
+/**
+ * BLT Popups — front-end styles.
+ *
+ * Scoped to .blt-popup-* only; loaded solely when a popup is eligible to
+ * render (or on the editor screen, for the live preview). No framework.
+ */
+
+html.blt-popup-open {
+	overflow: hidden;
+}
+
+.blt-popup-overlay {
+	position: fixed;
+	inset: 0;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 999999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	box-sizing: border-box;
+	/* background-color is set inline from the popup's color + opacity. */
+	animation: blt-popup-fade 0.2s ease-out;
+}
+
+.blt-popup-modal {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	max-width: 90vw;
+	max-height: 90vh;
+	box-sizing: border-box;
+	animation: blt-popup-pop 0.2s ease-out;
+}
+
+.blt-popup-close {
+	position: absolute;
+	top: -14px;
+	right: -14px;
+	z-index: 2;
+	width: 36px;
+	height: 36px;
+	padding: 0;
+	margin: 0;
+	border: none;
+	border-radius: 50%;
+	background: #ffffff;
+	color: #111111;
+	font-size: 24px;
+	line-height: 34px;
+	text-align: center;
+	cursor: pointer;
+	box-shadow: 0 2px 8px rgba( 0, 0, 0, 0.3 );
+	transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.blt-popup-close:hover,
+.blt-popup-close:focus {
+	background: #f0f0f0;
+	transform: scale( 1.08 );
+	outline: none;
+}
+
+.blt-popup-link {
+	display: block;
+	line-height: 0;
+	max-width: 100%;
+}
+
+.blt-popup-img {
+	display: block;
+	max-width: 100%;
+	height: auto;
+	width: auto;
+	border-radius: 4px;
+	box-shadow: 0 10px 40px rgba( 0, 0, 0, 0.35 );
+}
+
+.blt-popup-cta {
+	display: inline-block;
+	margin-top: 16px;
+	padding: 12px 28px;
+	border: none;
+	border-radius: 4px;
+	background: #111111;
+	color: #ffffff;
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 1.2;
+	cursor: pointer;
+	transition: opacity 0.15s ease;
+}
+
+.blt-popup-cta:hover,
+.blt-popup-cta:focus {
+	opacity: 0.85;
+	outline: none;
+}
+
+@keyframes blt-popup-fade {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes blt-popup-pop {
+	from { transform: scale( 0.94 ); opacity: 0; }
+	to { transform: scale( 1 ); opacity: 1; }
+}
+
+@media ( max-width: 600px ) {
+	.blt-popup-close {
+		top: -10px;
+		right: -10px;
+	}
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	.blt-popup-overlay,
+	.blt-popup-modal {
+		animation: none;
+	}
+}
