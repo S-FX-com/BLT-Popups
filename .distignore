@@ -1,0 +1,18 @@
+# Files excluded from the distribution zip (rsync --exclude-from). Patterns
+# are anchored with a leading slash so they only match at the repo root and
+# never strip the bundled plugin-update-checker's own README/composer files.
+/.git
+/.github
+/.gitignore
+/.distignore
+/.phpunit.result.cache
+/build
+/node_modules
+/tests
+/tasks
+/composer.json
+/composer.lock
+/phpcs.xml.dist
+/phpunit.xml.dist
+/README.md
+/CLAUDE.md
