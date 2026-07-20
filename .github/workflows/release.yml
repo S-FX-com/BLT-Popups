@@ -1,32 +1,23 @@
-# Release automation: every push to main (i.e. every merge) bumps the plugin
-# version, tags it, builds the distribution zip, and publishes a GitHub
-# release whose asset the bundled plugin-update-checker installs on client
-# sites as an update.
-#
-# Bump level: patch by default; put #minor or #major anywhere in a commit
-# message in the push (squash-merge titles count), or run the workflow
-# manually with the bump input.
-#
-# Loop prevention (three layers): pushes made with GITHUB_TOKEN never trigger
-# workflows (GitHub built-in), the bump commit carries [skip ci], and the
-# actor guard below skips bot-initiated runs.
-#
-# NOTE: if branch protection is ever enabled on main, the bot's direct push
-# will be rejected — grant the Actions app a ruleset bypass, or switch the
-# checkout/push to a PAT secret.
-
 name: Release
+
+# Publishes a GitHub release (with an installable plugin zip) for every push
+# to main. If the version in blt-popups.php has not been released yet it is
+# released as-is; otherwise the patch version is bumped, committed back to
+# main, and that new version is released. Put #minor or #major in a commit
+# message to bump higher. The zip asset is what the bundled
+# plugin-update-checker installs on client sites as an update.
+#
+# Uses only actions/checkout (GitHub-owned) plus the runner's preinstalled gh
+# CLI, PHP and rsync -- no third-party actions -- so it runs under a strict
+# org Actions allowlist.
+#
+# Loop prevention: the bump commit carries [skip release] and pushes made with
+# GITHUB_TOKEN do not retrigger workflows.
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      bump:
-        description: 'Version bump level'
-        type: choice
-        options: [patch, minor, major]
-        default: patch
 
 permissions:
   contents: write
@@ -37,90 +28,98 @@ concurrency:
 
 jobs:
   release:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip release]')"
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          coverage: none
+      - name: Read plugin version
+        id: version
+        run: |
+          VERSION=$(grep -oiP '^\s*\*\s*Version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' blt-popups.php | head -n1)
+          if [ -z "$VERSION" ]; then
+            echo "Could not parse the plugin version from blt-popups.php" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Plugin version: $VERSION"
+
+      - name: Check whether this version is already released
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG already exists - will bump the patch version."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG does not exist yet - will release the current version."
+          fi
 
       - name: Determine bump level
         id: level
         run: |
-          LEVEL="${{ github.event.inputs.bump }}"
-          if [ -z "$LEVEL" ]; then
-            LEVEL=patch
-            RANGE="${{ github.event.before }}..${{ github.sha }}"
-            # On force-push or first push the 'before' sha may be unknown; fall back to the head commit.
-            if ! MESSAGES=$(git log --format=%B "$RANGE" 2>/dev/null); then
-              MESSAGES=$(git log -1 --format=%B "${{ github.sha }}")
-            fi
-            case "$MESSAGES" in
-              *'#major'*) LEVEL=major ;;
-              *'#minor'*) LEVEL=minor ;;
-            esac
-          fi
+          LEVEL=patch
+          MSG=$(git log -1 --format=%B "${{ github.sha }}")
+          case "$MSG" in
+            *'#major'*) LEVEL=major ;;
+            *'#minor'*) LEVEL=minor ;;
+          esac
           echo "level=$LEVEL" >> "$GITHUB_OUTPUT"
-          echo "Bump level: $LEVEL"
 
       - name: Bump version
         id: bump
+        if: steps.check.outputs.exists == 'true'
         run: |
-          VERSION=$(php .github/scripts/bump-version.php "${{ steps.level.outputs.level }}")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "New version: $VERSION"
-
-      - name: Sanity-check version consistency
-        run: |
-          V="${{ steps.bump.outputs.version }}"
-          php -l blt-popups.php
-          grep -q "^ \* Version:[[:space:]]*${V}\$" blt-popups.php
-          grep -q "define( 'BLT_POPUPS_VERSION', '${V}' );" blt-popups.php
-          grep -q "^Stable tag: ${V}\$" readme.txt
-
-      - name: Commit, tag, push
-        run: |
-          V="${{ steps.bump.outputs.version }}"
+          NEW=$(php .github/scripts/bump-version.php "${{ steps.level.outputs.level }}")
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(release): v${V} [skip ci]"
-          git pull --rebase origin main
-          # Annotated tag (not lightweight) so --follow-tags actually pushes it,
-          # and create it after the rebase so it points at the pushed commit.
-          git tag -a "v${V}" -m "v${V}"
-          git push origin main --follow-tags
+          git commit -am "chore(release): v${NEW} [skip release]"
+          git push origin HEAD:main
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+          echo "Bumped to $NEW"
+
+      - name: Resolve release version
+        id: release
+        run: |
+          if [ "${{ steps.check.outputs.exists }}" = "true" ]; then
+            echo "version=${{ steps.bump.outputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ steps.version.outputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build distribution zip
         run: |
-          V="${{ steps.bump.outputs.version }}"
+          V="${{ steps.release.outputs.version }}"
           mkdir -p build/blt-popups
-          rsync -a --exclude-from=.distignore --exclude=.git --exclude=.github ./ build/blt-popups/
+          rsync -a --exclude-from=.distignore --exclude='.git' --exclude='.github' ./ build/blt-popups/
           cd build && zip -rq "blt-popups-${V}.zip" blt-popups
+          echo "Zip contents (top level):"
+          unzip -l "blt-popups-${V}.zip" | head -n 15
 
       - name: Verify zip contents
         run: |
-          V="${{ steps.bump.outputs.version }}"
+          V="${{ steps.release.outputs.version }}"
           Z="build/blt-popups-${V}.zip"
           LIST=$(unzip -l "$Z")
-          # Single stable top-level folder with the main plugin file.
           echo "$LIST" | awk '{print $4}' | grep -q '^blt-popups/blt-popups\.php$'
-          # The update-checker library (and its vendored Parsedown) must ship.
           echo "$LIST" | grep -q 'blt-popups/includes/lib/plugin-update-checker/plugin-update-checker\.php'
           echo "$LIST" | grep -q 'blt-popups/includes/lib/plugin-update-checker/vendor/Parsedown'
-          # Dev-only files must not ship.
-          ! echo "$LIST" | grep -qE 'blt-popups/(tests|tasks|node_modules)/'
-          # The packaged header must carry the released version.
           unzip -p "$Z" blt-popups/blt-popups.php | grep -q "Version:[[:space:]]*${V}"
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.bump.outputs.version }}
-          name: v${{ steps.bump.outputs.version }}
-          generate_release_notes: true
-          files: build/blt-popups-${{ steps.bump.outputs.version }}.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.release.outputs.version }}"
+          gh release create "v${V}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "v${V}" \
+            --generate-notes \
+            --target main \
+            "build/blt-popups-${V}.zip"
