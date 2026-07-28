@@ -202,7 +202,7 @@
 			var cta = document.createElement( 'button' );
 			cta.className = 'blt-popup-cta';
 			cta.type = 'button';
-			cta.textContent = v.ctaText || 'Learn more';
+			cta.textContent = v.ctaText || i18n.ctaFallback || 'Learn more';
 			modal.appendChild( cta );
 		}
 
@@ -247,7 +247,11 @@
 		btn.addEventListener( 'click', function ( e ) {
 			e.preventDefault();
 			var msg;
-			if ( data.activeId && data.activeId !== data.currentId ) {
+			// wp_localize_script casts scalars to strings, so an int 0 arrives as
+			// "0" — truthy in JS. Normalise before testing/comparing.
+			var activeId = parseInt( data.activeId, 10 ) || 0;
+			var currentId = parseInt( data.currentId, 10 ) || 0;
+			if ( activeId && activeId !== currentId ) {
 				msg = ( i18n.confirmReplace || 'This will deactivate the currently live popup "%s". Continue?' )
 					.replace( '%s', data.activeTitle || '' );
 			} else {

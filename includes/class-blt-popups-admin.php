@@ -322,6 +322,7 @@ class BLT_Popups_Admin {
 					'confirmActivate' => __( 'Make this popup live on the site now?', 'blt-popups' ),
 					'noImage'        => __( 'Select an image first to preview the popup.', 'blt-popups' ),
 					'close'          => __( 'Close', 'blt-popups' ),
+					'ctaFallback'    => __( 'Learn more', 'blt-popups' ),
 				),
 			)
 		);
