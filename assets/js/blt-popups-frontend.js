@@ -13,6 +13,8 @@
 	if ( ! cfg ) {
 		return;
 	}
+	// Translated strings from PHP; the literals are last-resort fallbacks only.
+	var i18n = cfg.i18n || {};
 
 	var PX_CAP = 1400; // Sensible hard cap so % sizing doesn't overscale on huge screens.
 	var lastFocused = null;
@@ -170,7 +172,7 @@
 		modal.className = 'blt-popup-modal';
 		modal.setAttribute( 'role', 'dialog' );
 		modal.setAttribute( 'aria-modal', 'true' );
-		modal.setAttribute( 'aria-label', popup.image.alt || 'Promotion' );
+		modal.setAttribute( 'aria-label', popup.image.alt || i18n.dialogLabel || 'Promotion' );
 		var maxW = Math.min( Math.max( parseInt( popup.maxWidthPct, 10 ) || 70, 10 ), 100 );
 		var maxH = Math.min( Math.max( parseInt( popup.maxHeightPct, 10 ) || 80, 10 ), 100 );
 		modal.style.maxWidth = 'min(' + maxW + 'vw, ' + PX_CAP + 'px)';
@@ -179,7 +181,7 @@
 		var closeBtn = document.createElement( 'button' );
 		closeBtn.className = 'blt-popup-close';
 		closeBtn.setAttribute( 'type', 'button' );
-		closeBtn.setAttribute( 'aria-label', 'Close' );
+		closeBtn.setAttribute( 'aria-label', i18n.close || 'Close' );
 		closeBtn.innerHTML = '&times;';
 		closeBtn.addEventListener( 'click', function () {
 			close( overlay, popup );
@@ -231,7 +233,7 @@
 			var cta = document.createElement( 'button' );
 			cta.className = 'blt-popup-cta';
 			cta.setAttribute( 'type', 'button' );
-			cta.textContent = popup.cta.text || 'Learn more';
+			cta.textContent = popup.cta.text || i18n.ctaFallback || 'Learn more';
 			cta.addEventListener( 'click', navigate );
 			modal.appendChild( cta );
 		}

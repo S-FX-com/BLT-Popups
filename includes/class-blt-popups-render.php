@@ -128,6 +128,13 @@ class BLT_Popups_Render {
 		$base = array(
 			'cookiePrefix' => 'blt_popup_seen_',
 			'previewMode'  => false,
+			// Client-side fallback strings must come from PHP to stay
+			// translatable; hardcoding them in JS bypasses the text domain.
+			'i18n'         => array(
+				'ctaFallback' => __( 'Learn more', 'blt-popups' ),
+				'close'       => __( 'Close', 'blt-popups' ),
+				'dialogLabel' => __( 'Promotion', 'blt-popups' ),
+			),
 		);
 		wp_localize_script( 'blt-popups-frontend', 'bltPopups', array_merge( $base, $data ) );
 	}
@@ -268,15 +275,25 @@ class BLT_Popups_Render {
 				return in_array( (string) $ctx['post_type'], $types, true );
 
 			case 'url_pattern':
-				$needle = is_string( $value ) ? $value : '';
+				$needle = is_string( $value ) ? trim( $value ) : '';
 				if ( '' === $needle ) {
 					return false;
 				}
-				$hay   = (string) $ctx['path'];
-				$match = BLT_Popups_CPT::get( $post_id, 'url_match' );
-				return ( 'starts_with' === $match )
-					? ( 0 === strpos( $hay, $needle ) )
-					: ( false !== strpos( $hay, $needle ) );
+				// URLs are lowercase by convention but the pattern is typed by
+				// hand, so match case-insensitively rather than failing silently
+				// on "/Promo".
+				$hay    = strtolower( (string) $ctx['path'] );
+				$needle = strtolower( $needle );
+				$match  = BLT_Popups_CPT::get( $post_id, 'url_match' );
+				if ( 'starts_with' === $match ) {
+					// A path always starts with "/", so tolerate a pattern typed
+					// without it ("promo") instead of never matching.
+					if ( 0 !== strpos( $needle, '/' ) ) {
+						$needle = '/' . $needle;
+					}
+					return 0 === strpos( $hay, $needle );
+				}
+				return false !== strpos( $hay, $needle );
 
 			default:
 				return false;
