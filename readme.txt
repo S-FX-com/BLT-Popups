@@ -56,5 +56,9 @@ No. The front end is dependency-free vanilla JavaScript and loads only when a po
 
 == Changelog ==
 
+= 1.1.0 =
+* Destination can now be Internal (search-and-select a page, with predictive suggestions as you type) or External (a URL that always opens in a new tab/window).
+* Modernized the popup editor: numbered, collapsible settings sections, toggle switches, and two new sidebar panels — an always-on Live Preview (with Desktop/Tablet/Mobile sizing) and a Popup Summary recap.
+
 = 1.0.0 =
 * Initial release: scheduled/targeted image popups, single-active enforcement, cache-safe REST delivery, in-admin and front-end preview, frequency capping, and impression/click counters.

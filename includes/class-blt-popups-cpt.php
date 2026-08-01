@@ -94,9 +94,18 @@ class BLT_Popups_CPT {
 				'type'    => 'int',
 				'default' => 0,
 			),
+			'dest_type'       => array(
+				'type'    => 'enum',
+				'default' => 'external',
+				'values'  => array( 'external', 'internal' ),
+			),
 			'dest_url'        => array(
 				'type'    => 'url',
 				'default' => '',
+			),
+			'dest_page_id'    => array(
+				'type'    => 'int',
+				'default' => 0,
 			),
 			'dest_new_tab'    => array(
 				'type'    => 'bool',

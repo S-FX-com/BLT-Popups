@@ -185,6 +185,8 @@ class BLT_Popups_Render {
 		$meta   = $image_id ? wp_get_attachment_metadata( $image_id ) : array();
 		$alt    = $image_id ? trim( (string) get_post_meta( $image_id, '_wp_attachment_image_alt', true ) ) : '';
 
+		list( $dest_url, $new_tab ) = self::resolve_destination( $post_id );
+
 		return array(
 			'id'             => $post_id,
 			'image'          => array(
@@ -194,8 +196,8 @@ class BLT_Popups_Render {
 				'height' => isset( $meta['height'] ) ? (int) $meta['height'] : 0,
 				'alt'    => $alt,
 			),
-			'destUrl'        => (string) BLT_Popups_CPT::get( $post_id, 'dest_url' ),
-			'newTab'         => (bool) BLT_Popups_CPT::get( $post_id, 'dest_new_tab' ),
+			'destUrl'        => $dest_url,
+			'newTab'         => $new_tab,
 			'cta'            => array(
 				'enabled' => (bool) BLT_Popups_CPT::get( $post_id, 'cta_enabled' ),
 				'text'    => (string) BLT_Popups_CPT::get( $post_id, 'cta_text' ),
@@ -210,6 +212,31 @@ class BLT_Popups_Render {
 			'frequency'      => (string) BLT_Popups_CPT::get( $post_id, 'frequency' ),
 			'frequencyDays'  => (int) BLT_Popups_CPT::get( $post_id, 'frequency_days' ),
 		);
+	}
+
+	/**
+	 * Resolve a popup's click-through URL and new-tab flag from its
+	 * destination type.
+	 *
+	 * Internal destinations resolve to a live page's permalink (falling back
+	 * to no destination if the page was trashed/unpublished since it was
+	 * chosen) and respect the saved new-tab preference. External destinations
+	 * use the stored URL as-is and always open in a new window, so a popup
+	 * click never navigates the visitor away from the site.
+	 *
+	 * @param int $post_id Popup ID.
+	 * @return array{0:string,1:bool} [ dest_url, new_tab ]
+	 */
+	private static function resolve_destination( $post_id ) {
+		if ( 'internal' === BLT_Popups_CPT::get( $post_id, 'dest_type' ) ) {
+			$page_id  = (int) BLT_Popups_CPT::get( $post_id, 'dest_page_id' );
+			$dest_url = ( $page_id && 'page' === get_post_type( $page_id ) && 'publish' === get_post_status( $page_id ) )
+				? (string) get_permalink( $page_id )
+				: '';
+			return array( $dest_url, (bool) BLT_Popups_CPT::get( $post_id, 'dest_new_tab' ) );
+		}
+
+		return array( (string) BLT_Popups_CPT::get( $post_id, 'dest_url' ), true );
 	}
 
 	/**

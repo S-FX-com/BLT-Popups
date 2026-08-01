@@ -26,6 +26,7 @@ class BLT_Popups_Admin {
 		add_action( 'manage_' . BLT_POPUPS_CPT . '_posts_custom_column', array( __CLASS__, 'render_column' ), 10, 2 );
 		add_action( 'admin_notices', array( __CLASS__, 'live_badge' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
+		add_action( 'add_meta_boxes', array( __CLASS__, 'add_side_meta_boxes' ) );
 
 		// Keep the pointer honest when the live popup is trashed or deleted.
 		add_action( 'wp_trash_post', array( __CLASS__, 'maybe_clear_on_removal' ) );
@@ -234,6 +235,119 @@ class BLT_Popups_Admin {
 	}
 
 	/* --------------------------------------------------------------------- *
+	 * Sidebar meta boxes (Live Preview + Popup Summary).
+	 * --------------------------------------------------------------------- */
+
+	/**
+	 * Register the two 'side' context meta boxes. Registered at 'default'
+	 * priority so both render below the native Publish box (added by core at
+	 * 'core' priority) — Live Preview first, Summary beneath it.
+	 *
+	 * @return void
+	 */
+	public static function add_side_meta_boxes() {
+		add_meta_box(
+			'blt_popup_live_preview',
+			__( 'Live Preview', 'blt-popups' ),
+			array( __CLASS__, 'render_live_preview_box' ),
+			BLT_POPUPS_CPT,
+			'side',
+			'default'
+		);
+
+		add_meta_box(
+			'blt_popup_summary',
+			__( 'Popup Summary', 'blt-popups' ),
+			array( __CLASS__, 'render_summary_box' ),
+			BLT_POPUPS_CPT,
+			'side',
+			'default'
+		);
+	}
+
+	/**
+	 * Render the Live Preview sidebar box. The frame itself is populated and
+	 * kept in sync entirely by JS (same renderer the front end uses), so a
+	 * change to the image, destination, sizing, overlay or CTA fields is
+	 * reflected immediately without a page reload.
+	 *
+	 * @param WP_Post $post Current popup.
+	 * @return void
+	 */
+	public static function render_live_preview_box( $post ) {
+		$post_id = (int) $post->ID;
+		?>
+		<div class="blt-popup-live-preview">
+			<div class="blt-popup-device-tabs" role="tablist" aria-label="<?php esc_attr_e( 'Preview device', 'blt-popups' ); ?>">
+				<button type="button" class="blt-popup-device-tab is-active" data-device="desktop" role="tab" aria-selected="true"><?php esc_html_e( 'Desktop', 'blt-popups' ); ?></button>
+				<button type="button" class="blt-popup-device-tab" data-device="tablet" role="tab" aria-selected="false"><?php esc_html_e( 'Tablet', 'blt-popups' ); ?></button>
+				<button type="button" class="blt-popup-device-tab" data-device="mobile" role="tab" aria-selected="false"><?php esc_html_e( 'Mobile', 'blt-popups' ); ?></button>
+			</div>
+			<div class="blt-popup-preview-frame" data-device="desktop">
+				<p class="blt-popup-preview-empty"><?php esc_html_e( 'Select an image to preview your popup.', 'blt-popups' ); ?></p>
+			</div>
+			<?php if ( $post_id && 'auto-draft' !== $post->post_status ) : ?>
+				<p class="blt-popup-preview-link">
+					<a href="<?php echo esc_url( BLT_Popups_Meta::preview_url( $post_id ) ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Open preview in new tab ↗', 'blt-popups' ); ?></a>
+				</p>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the Popup Summary sidebar box: a read-only recap of the fields
+	 * that most affect whether/how the popup shows, plus its lightweight
+	 * analytics and post dates. Reuses the same summary helpers as the list
+	 * table so the two never disagree.
+	 *
+	 * @param WP_Post $post Current popup.
+	 * @return void
+	 */
+	public static function render_summary_box( $post ) {
+		$post_id   = (int) $post->ID;
+		$status    = BLT_Popups_CPT::get( $post_id, 'status' );
+		$is_active = ( self::get_active_id() === $post_id ) && ( BLT_Popups_CPT::STATUS_ACTIVE === $status );
+		$label     = $is_active ? __( 'Active', 'blt-popups' ) : ucfirst( (string) $status );
+		$class     = $is_active ? 'active' : $status;
+		$is_saved  = ( $post_id && 'auto-draft' !== $post->post_status );
+		?>
+		<ul class="blt-popup-summary-list">
+			<li>
+				<span class="blt-popup-summary-label"><?php esc_html_e( 'Status', 'blt-popups' ); ?></span>
+				<span class="blt-popup-badge blt-popup-badge-<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $label ); ?></span>
+			</li>
+			<li>
+				<span class="blt-popup-summary-label"><?php esc_html_e( 'Schedule', 'blt-popups' ); ?></span>
+				<span class="blt-popup-summary-value"><?php echo esc_html( self::schedule_summary( $post_id ) ); ?></span>
+			</li>
+			<li>
+				<span class="blt-popup-summary-label"><?php esc_html_e( 'Targeting', 'blt-popups' ); ?></span>
+				<span class="blt-popup-summary-value"><?php echo esc_html( self::targeting_summary( $post_id ) ); ?></span>
+			</li>
+			<li>
+				<span class="blt-popup-summary-label"><?php esc_html_e( 'Impressions', 'blt-popups' ); ?></span>
+				<span class="blt-popup-summary-value"><?php echo (int) BLT_Popups_CPT::get( $post_id, 'impressions' ); ?></span>
+			</li>
+			<li>
+				<span class="blt-popup-summary-label"><?php esc_html_e( 'Clicks', 'blt-popups' ); ?></span>
+				<span class="blt-popup-summary-value"><?php echo (int) BLT_Popups_CPT::get( $post_id, 'clicks' ); ?></span>
+			</li>
+			<?php if ( $is_saved ) : ?>
+				<li>
+					<span class="blt-popup-summary-label"><?php esc_html_e( 'Created', 'blt-popups' ); ?></span>
+					<span class="blt-popup-summary-value"><?php echo esc_html( get_the_date( '', $post_id ) ); ?></span>
+				</li>
+				<li>
+					<span class="blt-popup-summary-label"><?php esc_html_e( 'Last updated', 'blt-popups' ); ?></span>
+					<span class="blt-popup-summary-value"><?php echo esc_html( get_the_modified_date( '', $post_id ) ); ?></span>
+				</li>
+			<?php endif; ?>
+		</ul>
+		<?php
+	}
+
+	/* --------------------------------------------------------------------- *
 	 * Live badge + assets.
 	 * --------------------------------------------------------------------- */
 
@@ -312,17 +426,22 @@ class BLT_Popups_Admin {
 			'blt-popups-admin',
 			'bltPopupsAdmin',
 			array(
-				'mediaTitle'   => __( 'Select popup image', 'blt-popups' ),
-				'mediaButton'  => __( 'Use this image', 'blt-popups' ),
-				'activeId'     => $active_id,
-				'activeTitle'  => $active_id ? get_the_title( $active_id ) : '',
-				'currentId'    => (int) get_the_ID(),
-				'i18n'         => array(
-					'confirmReplace' => __( 'This will deactivate the currently live popup "%s". Continue?', 'blt-popups' ),
+				'mediaTitle'    => __( 'Select popup image', 'blt-popups' ),
+				'mediaButton'   => __( 'Use this image', 'blt-popups' ),
+				'activeId'      => $active_id,
+				'activeTitle'   => $active_id ? get_the_title( $active_id ) : '',
+				'currentId'     => (int) get_the_ID(),
+				// Core's own content-search endpoint (the same one the block
+				// editor's link inserter uses) — no custom REST route needed.
+				'restSearchUrl' => esc_url_raw( rest_url( 'wp/v2/search' ) ),
+				'restNonce'     => wp_create_nonce( 'wp_rest' ),
+				'i18n'          => array(
+					'confirmReplace'  => __( 'This will deactivate the currently live popup "%s". Continue?', 'blt-popups' ),
 					'confirmActivate' => __( 'Make this popup live on the site now?', 'blt-popups' ),
-					'noImage'        => __( 'Select an image first to preview the popup.', 'blt-popups' ),
-					'close'          => __( 'Close', 'blt-popups' ),
-					'ctaFallback'    => __( 'Learn more', 'blt-popups' ),
+					'ctaFallback'     => __( 'Learn more', 'blt-popups' ),
+					'noResults'       => __( 'No matching pages found.', 'blt-popups' ),
+					'searching'       => __( 'Searching…', 'blt-popups' ),
+					'previewEmpty'    => __( 'Select an image to preview your popup.', 'blt-popups' ),
 				),
 			)
 		);
