@@ -66,6 +66,15 @@ class BLT_Popups_Meta {
 		$dest_type       = $get( 'dest_type' );
 		$dest_page_id    = (int) $get( 'dest_page_id' );
 		$dest_page_title = $dest_page_id ? get_the_title( $dest_page_id ) : '';
+		$animation       = $get( 'animation' );
+
+		// icon => [ label, SVG path markup ], used by the animation picker below.
+		$animation_options = array(
+			'none'  => array( __( 'None', 'blt-popups' ), '<circle cx="12" cy="12" r="9"/><line x1="5.5" y1="18.5" x2="18.5" y2="5.5"/>' ),
+			'fade'  => array( __( 'Fade', 'blt-popups' ), '<circle cx="9" cy="12" r="7" fill="currentColor" stroke="none" opacity="0.35"/><circle cx="15" cy="12" r="7" fill="currentColor" stroke="none" opacity="0.85"/>' ),
+			'slide' => array( __( 'Slide In', 'blt-popups' ), '<line x1="12" y1="19" x2="12" y2="6"/><polyline points="6 12 12 6 18 12"/>' ),
+			'zoom'  => array( __( 'Zoom In', 'blt-popups' ), '<polyline points="4 9 4 4 9 4"/><polyline points="15 4 20 4 20 9"/><polyline points="20 15 20 20 15 20"/><polyline points="9 20 4 20 4 15"/>' ),
+		);
 
 		// Renders a numbered, collapsible section header (see the matching
 		// closing </div></details> after each section's fields below).
@@ -175,6 +184,21 @@ class BLT_Popups_Meta {
 							<input type="number" min="0" max="1" step="0.05" name="blt_popup_overlay_opacity" id="blt_popup_overlay_opacity" value="<?php echo esc_attr( $get( 'overlay_opacity' ) ); ?>" />
 						</p>
 					</div>
+
+					<p class="blt-popup-field">
+						<span class="blt-popup-label"><?php esc_html_e( 'Choose popup animation', 'blt-popups' ); ?></span>
+						<div class="blt-popup-anim-picker" role="radiogroup" aria-label="<?php esc_attr_e( 'Popup animation', 'blt-popups' ); ?>">
+							<?php foreach ( $animation_options as $value => $option ) : ?>
+								<label class="blt-popup-anim-option">
+									<input type="radio" name="blt_popup_animation" value="<?php echo esc_attr( $value ); ?>" <?php checked( $animation, $value ); ?> />
+									<span class="blt-popup-anim-card">
+										<span class="blt-popup-anim-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><?php echo $option[1]; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fixed, hand-written inline SVG paths from $animation_options above, not user input. ?></svg></span>
+										<span class="blt-popup-anim-text"><?php echo esc_html( $option[0] ); ?></span>
+									</span>
+								</label>
+							<?php endforeach; ?>
+						</div>
+					</p>
 				</div>
 			</details>
 
@@ -405,6 +429,7 @@ class BLT_Popups_Meta {
 			'max_height_pct',
 			'overlay_color',
 			'overlay_opacity',
+			'animation',
 			'start_date',
 			'end_date',
 			'start_time',

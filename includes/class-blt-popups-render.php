@@ -206,6 +206,7 @@ class BLT_Popups_Render {
 			'maxHeightPct'   => (int) BLT_Popups_CPT::get( $post_id, 'max_height_pct' ),
 			'overlayColor'   => (string) BLT_Popups_CPT::get( $post_id, 'overlay_color' ),
 			'overlayOpacity' => (float) BLT_Popups_CPT::get( $post_id, 'overlay_opacity' ),
+			'animation'      => (string) BLT_Popups_CPT::get( $post_id, 'animation' ),
 			// Frequency travels with the config so the client caps against the
 			// popup actually served (fresh from REST), not a value baked into
 			// possibly-stale cached HTML.

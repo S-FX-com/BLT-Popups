@@ -141,6 +141,11 @@ class BLT_Popups_CPT {
 				'min'     => 0.0,
 				'max'     => 1.0,
 			),
+			'animation'       => array(
+				'type'    => 'enum',
+				'default' => 'zoom',
+				'values'  => array( 'none', 'fade', 'slide', 'zoom' ),
+			),
 			'start_date'      => array(
 				'type'    => 'date',
 				'default' => '',

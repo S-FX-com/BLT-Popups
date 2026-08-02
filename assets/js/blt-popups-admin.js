@@ -33,6 +33,17 @@
 		renderLivePreview();
 		box.addEventListener( 'input', scheduleLivePreviewUpdate );
 		box.addEventListener( 'change', scheduleLivePreviewUpdate );
+
+		// Last: relies on WP core's own DOM structure (h1.wp-heading-inline
+		// etc.), so it runs after everything load-bearing has already set up,
+		// and is wrapped defensively in case that structure ever differs.
+		try {
+			setupTopbar();
+		} catch ( err ) {
+			if ( window.console && window.console.error ) {
+				window.console.error( 'BLT Popups: sticky header setup failed', err );
+			}
+		}
 	} );
 
 	/* ------------------------------------------------------------------ *
@@ -310,8 +321,14 @@
 		return 'rgba(' + parseInt( h.substr( 0, 2 ), 16 ) + ',' + parseInt( h.substr( 2, 2 ), 16 ) + ',' + parseInt( h.substr( 4, 2 ), 16 ) + ',' + o + ')';
 	}
 
+	var ANIMATIONS = [ 'none', 'fade', 'slide', 'zoom' ];
+	function animationClass( animation ) {
+		return 'blt-popup-anim-' + ( ANIMATIONS.indexOf( animation ) !== -1 ? animation : 'zoom' );
+	}
+
 	function currentValues() {
 		var img = $( '.blt-popup-image-preview img' );
+		var animInput = $( 'input[name="blt_popup_animation"]:checked' );
 		return {
 			imageSrc: img ? img.getAttribute( 'src' ) : '',
 			ctaEnabled: !! ( $( '#blt_popup_cta_enabled' ) || {} ).checked,
@@ -319,20 +336,26 @@
 			maxWidthPct: parseInt( ( $( '#blt_popup_max_width_pct' ) || {} ).value, 10 ) || 70,
 			maxHeightPct: parseInt( ( $( '#blt_popup_max_height_pct' ) || {} ).value, 10 ) || 80,
 			overlayColor: ( $( '#blt_popup_overlay_color' ) || {} ).value || '#000000',
-			overlayOpacity: ( $( '#blt_popup_overlay_opacity' ) || {} ).value || '0.6'
+			overlayOpacity: ( $( '#blt_popup_overlay_opacity' ) || {} ).value || '0.6',
+			animation: animInput ? animInput.value : 'zoom'
 		};
 	}
 
 	// A static representation of the popup, scaled to the sidebar frame
 	// rather than the viewport — sizes are percentages of the frame (which
-	// plays the role of "the viewport" here), not vw/vh.
+	// plays the role of "the viewport" here), not vw/vh. Rebuilt from scratch
+	// on every change (see renderLivePreview), so the entrance animation
+	// naturally replays each time — including when the animation choice
+	// itself changes.
 	function buildPreviewCanvas( v ) {
+		var animCls = animationClass( v.animation );
+
 		var canvas = document.createElement( 'div' );
-		canvas.className = 'blt-popup-preview-canvas';
+		canvas.className = 'blt-popup-preview-canvas ' + animCls;
 		canvas.style.backgroundColor = hexToRgba( v.overlayColor, v.overlayOpacity );
 
 		var modal = document.createElement( 'div' );
-		modal.className = 'blt-popup-modal';
+		modal.className = 'blt-popup-modal ' + animCls;
 		var maxW = Math.min( Math.max( v.maxWidthPct, 10 ), 100 );
 		var maxH = Math.min( Math.max( v.maxHeightPct, 10 ), 100 );
 		modal.style.maxWidth = maxW + '%';
@@ -444,5 +467,84 @@
 				status.form.submit();
 			}
 		} );
+	}
+
+	/* ------------------------------------------------------------------ *
+	 * Sticky header bar
+	 *
+	 * Builds the custom top bar by relocating WP's own title heading and
+	 * "Add New" link into it (real nodes, not clones, so nothing about them
+	 * changes) and proxy-clicking the real #save-post/#publish buttons —
+	 * the same technique setupActivate() already uses above. Nothing about
+	 * how WP saves/publishes is touched; the native Publish box is left in
+	 * place as a fallback, just visually superseded by this bar.
+	 * ------------------------------------------------------------------ */
+
+	function setupTopbar() {
+		var wrap = $( '.wrap' );
+		var heading = wrap ? wrap.querySelector( ':scope > h1.wp-heading-inline' ) : null;
+		if ( ! wrap || ! heading ) {
+			return;
+		}
+		var addNew = wrap.querySelector( ':scope > a.page-title-action' );
+
+		var bar = document.createElement( 'div' );
+		bar.className = 'blt-popup-topbar';
+
+		if ( data.popupListUrl ) {
+			var back = document.createElement( 'a' );
+			back.className = 'blt-popup-topbar-back';
+			back.href = data.popupListUrl;
+			back.textContent = '← ' + ( i18n.allPopups || 'All Popups' );
+			bar.appendChild( back );
+		}
+
+		var titleWrap = document.createElement( 'div' );
+		titleWrap.className = 'blt-popup-topbar-title';
+		titleWrap.appendChild( heading ); // Relocates the real node — nothing left behind to hide.
+		bar.appendChild( titleWrap );
+
+		var spacer = document.createElement( 'div' );
+		spacer.className = 'blt-popup-topbar-spacer';
+		bar.appendChild( spacer );
+
+		if ( addNew ) {
+			addNew.classList.add( 'blt-popup-topbar-addnew', 'button' );
+			bar.appendChild( addNew ); // Relocates the real node.
+		}
+
+		var actions = document.createElement( 'div' );
+		actions.className = 'blt-popup-topbar-actions';
+
+		// Proxy buttons call .click() on the real (still-present, just
+		// visually superseded) native buttons rather than reimplementing
+		// save/publish — so autosave, revisions and locking all keep
+		// working exactly as WP core wired them.
+		var saveDraft = document.getElementById( 'save-post' );
+		if ( saveDraft ) {
+			var draftBtn = document.createElement( 'button' );
+			draftBtn.type = 'button';
+			draftBtn.className = 'button blt-popup-topbar-save';
+			draftBtn.textContent = saveDraft.value || i18n.saveDraft || 'Save Draft';
+			draftBtn.addEventListener( 'click', function () {
+				saveDraft.click();
+			} );
+			actions.appendChild( draftBtn );
+		}
+
+		var publish = document.getElementById( 'publish' );
+		if ( publish ) {
+			var publishBtn = document.createElement( 'button' );
+			publishBtn.type = 'button';
+			publishBtn.className = 'button button-primary blt-popup-topbar-publish';
+			publishBtn.textContent = publish.value || i18n.publish || 'Publish';
+			publishBtn.addEventListener( 'click', function () {
+				publish.click();
+			} );
+			actions.appendChild( publishBtn );
+		}
+
+		bar.appendChild( actions );
+		wrap.insertBefore( bar, wrap.firstChild );
 	}
 } )();

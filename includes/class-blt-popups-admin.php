@@ -25,12 +25,31 @@ class BLT_Popups_Admin {
 		add_filter( 'manage_' . BLT_POPUPS_CPT . '_posts_columns', array( __CLASS__, 'columns' ) );
 		add_action( 'manage_' . BLT_POPUPS_CPT . '_posts_custom_column', array( __CLASS__, 'render_column' ), 10, 2 );
 		add_action( 'admin_notices', array( __CLASS__, 'live_badge' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'duplicate_notice' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_side_meta_boxes' ) );
+		add_action( 'edit_form_after_title', array( __CLASS__, 'after_title_strip' ) );
+
+		// Duplicate action: list-table row link + the handler it points at.
+		add_filter( 'post_row_actions', array( __CLASS__, 'add_duplicate_row_action' ), 10, 2 );
+		add_action( 'admin_action_blt_popups_duplicate', array( __CLASS__, 'handle_duplicate' ) );
 
 		// Keep the pointer honest when the live popup is trashed or deleted.
 		add_action( 'wp_trash_post', array( __CLASS__, 'maybe_clear_on_removal' ) );
 		add_action( 'before_delete_post', array( __CLASS__, 'maybe_clear_on_removal' ) );
+	}
+
+	/**
+	 * The nonce-signed URL for duplicating a popup via {@see handle_duplicate()}.
+	 *
+	 * @param int $post_id Popup to duplicate.
+	 * @return string
+	 */
+	public static function duplicate_url( $post_id ) {
+		return wp_nonce_url(
+			admin_url( 'admin.php?action=blt_popups_duplicate&post=' . (int) $post_id ),
+			'blt_popups_duplicate_' . (int) $post_id
+		);
 	}
 
 	/* --------------------------------------------------------------------- *
@@ -235,6 +254,100 @@ class BLT_Popups_Admin {
 	}
 
 	/* --------------------------------------------------------------------- *
+	 * Duplicate action.
+	 * --------------------------------------------------------------------- */
+
+	/**
+	 * Add a "Duplicate" link to the list-table row actions.
+	 *
+	 * @param array   $actions Existing row actions.
+	 * @param WP_Post $post    The row's post.
+	 * @return array
+	 */
+	public static function add_duplicate_row_action( $actions, $post ) {
+		if ( BLT_POPUPS_CPT !== $post->post_type || ! current_user_can( 'edit_post', $post->ID ) ) {
+			return $actions;
+		}
+		$actions['blt_duplicate'] = sprintf(
+			'<a href="%s">%s</a>',
+			esc_url( self::duplicate_url( $post->ID ) ),
+			esc_html__( 'Duplicate', 'blt-popups' )
+		);
+		return $actions;
+	}
+
+	/**
+	 * Duplicate a popup into a new draft carrying every schema field except
+	 * status/impressions/clicks — a copy is never live and starts its
+	 * analytics at zero, same as any freshly created popup (both simply fall
+	 * back to their schema defaults by not being written below).
+	 *
+	 * @return void
+	 */
+	public static function handle_duplicate() {
+		$post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
+		if ( ! $post_id || BLT_POPUPS_CPT !== get_post_type( $post_id ) ) {
+			wp_die( esc_html__( 'Invalid popup.', 'blt-popups' ) );
+		}
+
+		check_admin_referer( 'blt_popups_duplicate_' . $post_id );
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_die( esc_html__( 'You are not allowed to duplicate this popup.', 'blt-popups' ) );
+		}
+
+		$source = get_post( $post_id );
+		if ( ! $source ) {
+			wp_die( esc_html__( 'Popup not found.', 'blt-popups' ) );
+		}
+
+		$new_id = wp_insert_post(
+			array(
+				'post_type'   => BLT_POPUPS_CPT,
+				/* translators: %s: original popup title. */
+				'post_title'  => sprintf( __( '%s (copy)', 'blt-popups' ), $source->post_title ),
+				'post_status' => 'draft',
+			),
+			true
+		);
+
+		if ( is_wp_error( $new_id ) ) {
+			wp_die( $new_id ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- wp_die() escapes WP_Error internally.
+		}
+
+		$skip = array( 'status', 'impressions', 'clicks' );
+		foreach ( BLT_Popups_CPT::fields() as $field => $schema ) {
+			if ( in_array( $field, $skip, true ) ) {
+				continue;
+			}
+			update_post_meta( $new_id, BLT_Popups_CPT::meta_key( $field ), BLT_Popups_CPT::get( $post_id, $field ) );
+		}
+
+		wp_safe_redirect( add_query_arg( 'blt_duplicated', '1', get_edit_post_link( $new_id, 'raw' ) ) );
+		exit;
+	}
+
+	/**
+	 * One-time success notice after {@see handle_duplicate()} redirects to
+	 * the new draft's editor.
+	 *
+	 * @return void
+	 */
+	public static function duplicate_notice() {
+		if ( ! isset( $_GET['blt_duplicated'] ) ) {
+			return;
+		}
+		$screen = get_current_screen();
+		if ( ! $screen || BLT_POPUPS_CPT !== $screen->post_type ) {
+			return;
+		}
+		printf(
+			'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+			esc_html__( 'Popup duplicated. This copy is a draft — review it and activate when ready.', 'blt-popups' )
+		);
+	}
+
+	/* --------------------------------------------------------------------- *
 	 * Sidebar meta boxes (Live Preview + Popup Summary).
 	 * --------------------------------------------------------------------- */
 
@@ -344,6 +457,52 @@ class BLT_Popups_Admin {
 				</li>
 			<?php endif; ?>
 		</ul>
+		<?php if ( $is_saved && current_user_can( 'edit_post', $post_id ) ) : ?>
+			<p class="blt-popup-duplicate">
+				<a href="<?php echo esc_url( self::duplicate_url( $post_id ) ); ?>">⧉ <?php esc_html_e( 'Duplicate this popup', 'blt-popups' ); ?></a>
+			</p>
+		<?php endif; ?>
+		<?php
+	}
+
+	/* --------------------------------------------------------------------- *
+	 * Title strip (status + last-updated, shown under the title field).
+	 * --------------------------------------------------------------------- */
+
+	/**
+	 * Render a small status/last-updated strip right under the title field,
+	 * via core's own edit_form_after_title hook — fires for every post type,
+	 * so this guards to only render on popups.
+	 *
+	 * @param WP_Post $post Current post (any post type).
+	 * @return void
+	 */
+	public static function after_title_strip( $post ) {
+		if ( ! $post || BLT_POPUPS_CPT !== $post->post_type ) {
+			return;
+		}
+		$post_id = (int) $post->ID;
+		if ( ! $post_id || 'auto-draft' === $post->post_status ) {
+			return;
+		}
+
+		$status    = BLT_Popups_CPT::get( $post_id, 'status' );
+		$is_active = ( self::get_active_id() === $post_id ) && ( BLT_Popups_CPT::STATUS_ACTIVE === $status );
+		$label     = $is_active ? __( 'Active', 'blt-popups' ) : ucfirst( (string) $status );
+		$class     = $is_active ? 'active' : $status;
+		?>
+		<div class="blt-popup-title-strip">
+			<span class="blt-popup-badge blt-popup-badge-<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $label ); ?></span>
+			<span class="blt-popup-title-strip-modified">
+				<?php
+				printf(
+					/* translators: %s: last-modified date and time. */
+					esc_html__( 'Last updated: %s', 'blt-popups' ),
+					esc_html( get_the_modified_date( '', $post_id ) . ' ' . get_the_modified_time( '', $post_id ) )
+				);
+				?>
+			</span>
+		</div>
 		<?php
 	}
 
@@ -431,6 +590,7 @@ class BLT_Popups_Admin {
 				'activeId'      => $active_id,
 				'activeTitle'   => $active_id ? get_the_title( $active_id ) : '',
 				'currentId'     => (int) get_the_ID(),
+				'popupListUrl'  => esc_url_raw( admin_url( 'edit.php?post_type=' . BLT_POPUPS_CPT ) ),
 				// Core's own content-search endpoint (the same one the block
 				// editor's link inserter uses) — no custom REST route needed.
 				'restSearchUrl' => esc_url_raw( rest_url( 'wp/v2/search' ) ),
@@ -442,6 +602,9 @@ class BLT_Popups_Admin {
 					'noResults'       => __( 'No matching pages found.', 'blt-popups' ),
 					'searching'       => __( 'Searching…', 'blt-popups' ),
 					'previewEmpty'    => __( 'Select an image to preview your popup.', 'blt-popups' ),
+					'allPopups'       => __( 'All Popups', 'blt-popups' ),
+					'saveDraft'       => __( 'Save Draft', 'blt-popups' ),
+					'publish'         => __( 'Publish', 'blt-popups' ),
 				),
 			)
 		);

@@ -2,6 +2,92 @@
  * BLT Popups — admin editor + list-table styles.
  */
 
+/* ---- Sticky header bar ----
+ * This stylesheet only loads on the popup edit screen (see enqueue()), so
+ * hiding the admin bar here can't leak onto any other wp-admin page. */
+#wpadminbar {
+	display: none !important;
+}
+
+html.wp-toolbar {
+	padding-top: 0 !important;
+}
+
+.blt-popup-topbar {
+	position: sticky;
+	top: 0;
+	z-index: 30;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	margin: 0 0 16px;
+	padding: 12px 16px;
+	background: #ffffff;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+	box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.04 );
+}
+
+.blt-popup-topbar-back {
+	flex-shrink: 0;
+	color: #50575e;
+	text-decoration: none;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.blt-popup-topbar-back:hover {
+	color: #2271b1;
+}
+
+.blt-popup-topbar-title {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.blt-popup-topbar-title h1.wp-heading-inline {
+	margin: 0;
+	padding: 0;
+	font-size: 18px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.blt-popup-topbar-spacer {
+	flex: 1 1 auto;
+}
+
+.blt-popup-topbar-addnew,
+.blt-popup-topbar-actions {
+	flex-shrink: 0;
+}
+
+.blt-popup-topbar-actions {
+	display: flex;
+	gap: 8px;
+}
+
+@media ( max-width: 782px ) {
+	.blt-popup-topbar {
+		/* A sticky bar fights the WP admin menu's own collapse/overlay
+		   behaviour at narrow widths, so it scrolls with the page instead. */
+		position: static;
+	}
+}
+
+.blt-popup-title-strip {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+	margin: 0 0 16px;
+	font-size: 13px;
+	color: #6c7781;
+}
+
 /* ---- Numbered, collapsible settings sections ---- */
 .blt-popup-metabox .blt-popup-section {
 	border: 1px solid #dcdcde;
@@ -127,6 +213,60 @@
 .blt-popup-section-body input[type="time"],
 .blt-popup-section-body select {
 	border-radius: 6px;
+}
+
+/* ---- Popup animation: icon-button picker ---- */
+.blt-popup-anim-picker {
+	display: grid;
+	grid-template-columns: repeat( 4, 1fr );
+	gap: 8px;
+}
+
+.blt-popup-anim-option {
+	margin: 0 !important;
+	cursor: pointer;
+}
+
+.blt-popup-anim-option input {
+	position: absolute;
+	opacity: 0;
+	width: 1px;
+	height: 1px;
+}
+
+.blt-popup-anim-card {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	padding: 10px 6px;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	background: #ffffff;
+	color: #50575e;
+	text-align: center;
+}
+
+.blt-popup-anim-text {
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.blt-popup-anim-option input:checked + .blt-popup-anim-card {
+	border-color: #2271b1;
+	background: #f0f6fb;
+	color: #2271b1;
+}
+
+.blt-popup-anim-option input:focus-visible + .blt-popup-anim-card {
+	outline: 2px solid #2271b1;
+	outline-offset: 1px;
+}
+
+@media ( max-width: 782px ) {
+	.blt-popup-anim-picker {
+		grid-template-columns: repeat( 2, 1fr );
+	}
 }
 
 /* ---- Destination type: segmented toggle ---- */
@@ -382,6 +522,25 @@
 	box-sizing: border-box;
 }
 
+/* Mirrors the front end's .blt-popup-overlay animation rules (frontend.css) —
+   this box can't reuse that class because .blt-popup-overlay is fixed/full-
+   viewport, which would break out of the bounded preview frame. The modal's
+   own animation classes (.blt-popup-modal.blt-popup-anim-*) ARE shared with
+   the front end, defined once in frontend.css. */
+.blt-popup-preview-canvas.blt-popup-anim-fade,
+.blt-popup-preview-canvas.blt-popup-anim-slide,
+.blt-popup-preview-canvas.blt-popup-anim-zoom {
+	animation: blt-popup-fade 0.2s ease-out;
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	/* .blt-popup-modal itself is already covered by frontend.css, which is
+	   always loaded alongside this stylesheet (see enqueue()). */
+	.blt-popup-preview-canvas.blt-popup-preview-canvas {
+		animation: none;
+	}
+}
+
 .blt-popup-preview-canvas .blt-popup-close {
 	width: 22px;
 	height: 22px;
@@ -439,6 +598,14 @@
 	font-weight: 600;
 	color: #1d2327;
 	text-align: right;
+}
+
+.blt-popup-duplicate {
+	margin: 12px 0 0;
+	padding-top: 12px;
+	border-top: 1px solid #f0f0f1;
+	font-size: 13px;
+	text-align: center;
 }
 
 /* ---- Status badges (list table + live notice + summary box) ---- */

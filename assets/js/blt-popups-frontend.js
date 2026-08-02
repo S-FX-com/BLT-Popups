@@ -118,6 +118,13 @@
 	 * Rendering
 	 * ------------------------------------------------------------------ */
 
+	var ANIMATIONS = [ 'none', 'fade', 'slide', 'zoom' ];
+	function animationClass( animation ) {
+		// 'zoom' (scale + fade) matches the plugin's original, un-configurable
+		// entrance effect, so it's the safe fallback for an unrecognised value.
+		return 'blt-popup-anim-' + ( ANIMATIONS.indexOf( animation ) !== -1 ? animation : 'zoom' );
+	}
+
 	function hexToRgba( hex, opacity ) {
 		var h = String( hex || '#000000' ).replace( '#', '' );
 		if ( h.length === 3 ) {
@@ -163,13 +170,15 @@
 
 		lastFocused = document.activeElement;
 
+		var animCls = animationClass( popup.animation );
+
 		var overlay = document.createElement( 'div' );
-		overlay.className = 'blt-popup-overlay';
+		overlay.className = 'blt-popup-overlay ' + animCls;
 		overlay.setAttribute( 'data-popup-id', popup.id );
 		overlay.style.backgroundColor = hexToRgba( popup.overlayColor, popup.overlayOpacity );
 
 		var modal = document.createElement( 'div' );
-		modal.className = 'blt-popup-modal';
+		modal.className = 'blt-popup-modal ' + animCls;
 		modal.setAttribute( 'role', 'dialog' );
 		modal.setAttribute( 'aria-modal', 'true' );
 		modal.setAttribute( 'aria-label', popup.image.alt || i18n.dialogLabel || 'Promotion' );

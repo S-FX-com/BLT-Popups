@@ -23,7 +23,6 @@ html.blt-popup-open {
 	padding: 20px;
 	box-sizing: border-box;
 	/* background-color is set inline from the popup's color + opacity. */
-	animation: blt-popup-fade 0.2s ease-out;
 }
 
 .blt-popup-modal {
@@ -34,6 +33,24 @@ html.blt-popup-open {
 	max-width: 90vw;
 	max-height: 90vh;
 	box-sizing: border-box;
+}
+
+/* ---- Entrance animation (chosen per-popup; "none" has no rule = no motion) ---- */
+.blt-popup-overlay.blt-popup-anim-fade,
+.blt-popup-overlay.blt-popup-anim-slide,
+.blt-popup-overlay.blt-popup-anim-zoom {
+	animation: blt-popup-fade 0.2s ease-out;
+}
+
+.blt-popup-modal.blt-popup-anim-fade {
+	animation: blt-popup-fade 0.2s ease-out;
+}
+
+.blt-popup-modal.blt-popup-anim-slide {
+	animation: blt-popup-slide-up 0.25s ease-out;
+}
+
+.blt-popup-modal.blt-popup-anim-zoom {
 	animation: blt-popup-pop 0.2s ease-out;
 }
 
@@ -111,6 +128,11 @@ html.blt-popup-open {
 	to { transform: scale( 1 ); opacity: 1; }
 }
 
+@keyframes blt-popup-slide-up {
+	from { transform: translateY( 24px ); opacity: 0; }
+	to { transform: translateY( 0 ); opacity: 1; }
+}
+
 @media ( max-width: 600px ) {
 	.blt-popup-close {
 		top: -10px;
@@ -119,8 +141,10 @@ html.blt-popup-open {
 }
 
 @media ( prefers-reduced-motion: reduce ) {
-	.blt-popup-overlay,
-	.blt-popup-modal {
+	/* Higher specificity than the .blt-popup-anim-* rules above, so reduced
+	   motion always wins regardless of which animation a popup picked. */
+	.blt-popup-overlay.blt-popup-overlay,
+	.blt-popup-modal.blt-popup-modal {
 		animation: none;
 	}
 }
