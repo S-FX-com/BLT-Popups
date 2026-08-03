@@ -2,25 +2,180 @@
  * BLT Popups — admin editor + list-table styles.
  */
 
-/* ---- Meta box ---- */
-.blt-popup-metabox .blt-popup-group {
-	border: 1px solid #dcdcde;
-	border-radius: 6px;
-	padding: 16px 20px;
-	margin: 0 0 18px;
+/* ---- Sticky header bar ----
+ * This stylesheet only loads on the popup edit screen (see enqueue()), so
+ * hiding the admin bar here can't leak onto any other wp-admin page. */
+#wpadminbar {
+	display: none !important;
 }
 
-.blt-popup-metabox .blt-popup-group legend {
-	padding: 0 6px;
+html.wp-toolbar {
+	padding-top: 0 !important;
+}
+
+.blt-popup-topbar {
+	position: sticky;
+	top: 0;
+	z-index: 30;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	margin: 0 0 16px;
+	padding: 12px 16px;
+	background: #ffffff;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+	box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.04 );
+}
+
+.blt-popup-topbar-back {
+	flex-shrink: 0;
+	color: #50575e;
+	text-decoration: none;
 	font-size: 13px;
 	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
+}
+
+.blt-popup-topbar-back:hover {
+	color: #2271b1;
+}
+
+.blt-popup-topbar-title {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.blt-popup-topbar-title h1.wp-heading-inline {
+	margin: 0;
+	padding: 0;
+	font-size: 18px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.blt-popup-topbar-spacer {
+	flex: 1 1 auto;
+}
+
+.blt-popup-topbar-addnew,
+.blt-popup-topbar-actions {
+	flex-shrink: 0;
+}
+
+.blt-popup-topbar-actions {
+	display: flex;
+	gap: 8px;
+}
+
+@media ( max-width: 782px ) {
+	.blt-popup-topbar {
+		/* A sticky bar fights the WP admin menu's own collapse/overlay
+		   behaviour at narrow widths, so it scrolls with the page instead. */
+		position: static;
+	}
+}
+
+.blt-popup-title-strip {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+	margin: 0 0 16px;
+	font-size: 13px;
+	color: #6c7781;
+}
+
+/* ---- Numbered, collapsible settings sections ---- */
+.blt-popup-metabox .blt-popup-section {
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+	margin: 0 0 16px;
+	background: #fff;
+	overflow: hidden;
+}
+
+.blt-popup-metabox .blt-popup-section:last-child {
+	margin-bottom: 0;
+}
+
+.blt-popup-section-header {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 14px 18px;
+	cursor: pointer;
+	list-style: none;
+	user-select: none;
+}
+
+.blt-popup-section-header::-webkit-details-marker {
+	display: none;
+}
+
+.blt-popup-section-header::after {
+	content: '';
+	width: 8px;
+	height: 8px;
+	margin-left: auto;
+	margin-top: 6px;
+	border-right: 2px solid #8c8f94;
+	border-bottom: 2px solid #8c8f94;
+	transform: rotate( 45deg );
+	transition: transform 0.15s ease;
+	flex-shrink: 0;
+}
+
+.blt-popup-section[open] > .blt-popup-section-header::after {
+	transform: rotate( -135deg );
+	margin-top: 10px;
+}
+
+.blt-popup-step-num {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	border-radius: 50%;
+	background: #2271b1;
+	color: #ffffff;
+	font-size: 13px;
+	font-weight: 700;
+	flex-shrink: 0;
+}
+
+.blt-popup-section-heading {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.blt-popup-section-title {
+	font-size: 14px;
+	font-weight: 600;
 	color: #1d2327;
+}
+
+.blt-popup-section-desc {
+	font-size: 12px;
+	color: #6c7781;
+}
+
+.blt-popup-section-body {
+	padding: 16px 18px 18px;
+	border-top: 1px solid #f0f0f1;
 }
 
 .blt-popup-field {
 	margin: 0 0 14px;
+}
+
+.blt-popup-section-body > .blt-popup-field:last-child,
+.blt-popup-field-row:last-child {
+	margin-bottom: 0;
 }
 
 .blt-popup-label {
@@ -34,6 +189,234 @@
 	margin: 0 16px 6px 0;
 }
 
+.blt-popup-field-row {
+	display: flex;
+	gap: 16px;
+}
+
+.blt-popup-field-row .blt-popup-field {
+	flex: 1;
+	min-width: 0;
+}
+
+@media ( max-width: 782px ) {
+	.blt-popup-field-row {
+		flex-direction: column;
+		gap: 0;
+	}
+}
+
+.blt-popup-section-body input[type="text"],
+.blt-popup-section-body input[type="url"],
+.blt-popup-section-body input[type="number"],
+.blt-popup-section-body input[type="date"],
+.blt-popup-section-body input[type="time"],
+.blt-popup-section-body select {
+	border-radius: 6px;
+}
+
+/* ---- Popup animation: icon-button picker ---- */
+.blt-popup-anim-picker {
+	display: grid;
+	grid-template-columns: repeat( 4, 1fr );
+	gap: 8px;
+}
+
+.blt-popup-anim-option {
+	margin: 0 !important;
+	cursor: pointer;
+}
+
+.blt-popup-anim-option input {
+	position: absolute;
+	opacity: 0;
+	width: 1px;
+	height: 1px;
+}
+
+.blt-popup-anim-card {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	padding: 10px 6px;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	background: #ffffff;
+	color: #50575e;
+	text-align: center;
+}
+
+.blt-popup-anim-text {
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.blt-popup-anim-option input:checked + .blt-popup-anim-card {
+	border-color: #2271b1;
+	background: #f0f6fb;
+	color: #2271b1;
+}
+
+.blt-popup-anim-option input:focus-visible + .blt-popup-anim-card {
+	outline: 2px solid #2271b1;
+	outline-offset: 1px;
+}
+
+@media ( max-width: 782px ) {
+	.blt-popup-anim-picker {
+		grid-template-columns: repeat( 2, 1fr );
+	}
+}
+
+/* ---- Destination type: segmented toggle ---- */
+.blt-popup-segmented {
+	display: inline-flex;
+	border: 1px solid #8c8f94;
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.blt-popup-segmented-option {
+	margin: 0 !important;
+	position: relative;
+}
+
+.blt-popup-segmented-option input {
+	position: absolute;
+	opacity: 0;
+	inset: 0;
+	margin: 0;
+	cursor: pointer;
+}
+
+.blt-popup-segmented-option span {
+	display: inline-block;
+	padding: 6px 18px;
+	font-weight: 600;
+	font-size: 13px;
+	color: #50575e;
+	background: #f6f7f7;
+	cursor: pointer;
+	user-select: none;
+}
+
+.blt-popup-segmented-option:not( :last-child ) span {
+	border-right: 1px solid #8c8f94;
+}
+
+.blt-popup-segmented-option input:checked + span {
+	background: #2271b1;
+	color: #ffffff;
+}
+
+.blt-popup-segmented-option input:focus-visible + span {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+/* ---- Boolean fields: toggle switch ---- */
+.blt-popup-switch {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	cursor: pointer;
+}
+
+.blt-popup-switch input {
+	position: absolute;
+	opacity: 0;
+	width: 1px;
+	height: 1px;
+}
+
+.blt-popup-switch-track {
+	position: relative;
+	width: 38px;
+	height: 22px;
+	border-radius: 11px;
+	background: #8c8f94;
+	flex-shrink: 0;
+	transition: background 0.15s ease;
+}
+
+.blt-popup-switch-track::before {
+	content: '';
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: #ffffff;
+	transition: transform 0.15s ease;
+	box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.3 );
+}
+
+.blt-popup-switch input:checked + .blt-popup-switch-track {
+	background: #2271b1;
+}
+
+.blt-popup-switch input:checked + .blt-popup-switch-track::before {
+	transform: translateX( 16px );
+}
+
+.blt-popup-switch input:focus-visible + .blt-popup-switch-track {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+.blt-popup-switch-label {
+	font-weight: 600;
+}
+
+/* ---- Internal destination: predictive page search ---- */
+.blt-popup-page-search-wrap {
+	position: relative;
+	display: block;
+}
+
+.blt-popup-page-suggestions {
+	position: absolute;
+	z-index: 10;
+	top: 100%;
+	left: 0;
+	right: 0;
+	margin: 2px 0 0;
+	padding: 4px 0;
+	background: #ffffff;
+	border: 1px solid #8c8f94;
+	border-radius: 4px;
+	box-shadow: 0 2px 8px rgba( 0, 0, 0, 0.15 );
+	max-height: 220px;
+	overflow-y: auto;
+	list-style: none;
+}
+
+.blt-popup-page-suggestions[hidden] {
+	display: none;
+}
+
+.blt-popup-page-suggestion {
+	padding: 7px 12px;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.blt-popup-page-suggestion:hover,
+.blt-popup-page-suggestion.is-active {
+	background: #2271b1;
+	color: #ffffff;
+}
+
+.blt-popup-page-suggestion-empty {
+	padding: 7px 12px;
+	font-size: 13px;
+	color: #6c7781;
+	font-style: italic;
+}
+
+/* ---- Image picker ---- */
 .blt-popup-image-preview {
 	display: block;
 	max-width: 320px;
@@ -68,7 +451,164 @@
 	font-weight: 600;
 }
 
-/* ---- Status badges (list table + live notice) ---- */
+/* ---- Sidebar: Live Preview box ---- */
+.blt-popup-device-tabs {
+	display: flex;
+	gap: 4px;
+	margin-bottom: 10px;
+}
+
+.blt-popup-device-tab {
+	flex: 1;
+	padding: 6px 8px;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	background: #f6f7f7;
+	color: #50575e;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.blt-popup-device-tab.is-active {
+	background: #2271b1;
+	border-color: #2271b1;
+	color: #ffffff;
+}
+
+.blt-popup-preview-frame {
+	position: relative;
+	height: 220px;
+	margin: 0 auto;
+	background: #1e1e1e;
+	border-radius: 6px;
+	overflow: hidden;
+	transition: width 0.15s ease;
+}
+
+.blt-popup-preview-frame[data-device="desktop"] {
+	width: 100%;
+}
+
+.blt-popup-preview-frame[data-device="tablet"] {
+	width: 82%;
+}
+
+.blt-popup-preview-frame[data-device="mobile"] {
+	width: 52%;
+}
+
+.blt-popup-preview-frame .blt-popup-preview-empty {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	padding: 16px;
+	text-align: center;
+	color: #9ea3a8;
+	font-size: 12px;
+	box-sizing: border-box;
+}
+
+.blt-popup-preview-canvas {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 14px;
+	box-sizing: border-box;
+}
+
+/* Mirrors the front end's .blt-popup-overlay animation rules (frontend.css) —
+   this box can't reuse that class because .blt-popup-overlay is fixed/full-
+   viewport, which would break out of the bounded preview frame. The modal's
+   own animation classes (.blt-popup-modal.blt-popup-anim-*) ARE shared with
+   the front end, defined once in frontend.css. */
+.blt-popup-preview-canvas.blt-popup-anim-fade,
+.blt-popup-preview-canvas.blt-popup-anim-slide,
+.blt-popup-preview-canvas.blt-popup-anim-zoom {
+	animation: blt-popup-fade 0.2s ease-out;
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	/* .blt-popup-modal itself is already covered by frontend.css, which is
+	   always loaded alongside this stylesheet (see enqueue()). */
+	.blt-popup-preview-canvas.blt-popup-preview-canvas {
+		animation: none;
+	}
+}
+
+.blt-popup-preview-canvas .blt-popup-close {
+	width: 22px;
+	height: 22px;
+	top: -8px;
+	right: -8px;
+	font-size: 16px;
+	line-height: 20px;
+	box-shadow: 0 1px 4px rgba( 0, 0, 0, 0.3 );
+}
+
+.blt-popup-preview-canvas .blt-popup-cta {
+	margin-top: 8px;
+	padding: 6px 14px;
+	font-size: 11px;
+}
+
+.blt-popup-preview-canvas .blt-popup-img {
+	border-radius: 3px;
+	box-shadow: 0 4px 16px rgba( 0, 0, 0, 0.35 );
+}
+
+.blt-popup-preview-link {
+	margin: 10px 0 0;
+	text-align: center;
+	font-size: 12px;
+}
+
+/* ---- Sidebar: Popup Summary box ---- */
+.blt-popup-summary-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.blt-popup-summary-list li {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px 0;
+	border-bottom: 1px solid #f0f0f1;
+	font-size: 13px;
+}
+
+.blt-popup-summary-list li:last-child {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+.blt-popup-summary-label {
+	color: #6c7781;
+}
+
+.blt-popup-summary-value {
+	font-weight: 600;
+	color: #1d2327;
+	text-align: right;
+}
+
+.blt-popup-duplicate {
+	margin: 12px 0 0;
+	padding-top: 12px;
+	border-top: 1px solid #f0f0f1;
+	font-size: 13px;
+	text-align: center;
+}
+
+/* ---- Status badges (list table + live notice + summary box) ---- */
 .blt-popup-badge {
 	display: inline-block;
 	padding: 3px 10px;

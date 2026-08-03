@@ -1,6 +1,7 @@
 /**
- * BLT Popups — editor scripts: media picker, conditional fields, in-admin
- * live preview, and the activate confirmation. Vanilla JS + wp.media.
+ * BLT Popups — editor scripts: media picker, conditional fields, destination
+ * page search, the always-on sidebar live preview, and the activate
+ * confirmation. Vanilla JS + wp.media.
  */
 ( function () {
 	'use strict';
@@ -23,8 +24,26 @@
 
 		setupMedia();
 		setupConditionalFields();
-		setupPreview();
+		setupDestinationPageSearch();
 		setupActivate();
+
+		// Live preview: render once from the fields' initial state, then keep
+		// it in sync with any change inside the settings box.
+		setupDeviceTabs();
+		renderLivePreview();
+		box.addEventListener( 'input', scheduleLivePreviewUpdate );
+		box.addEventListener( 'change', scheduleLivePreviewUpdate );
+
+		// Last: relies on WP core's own DOM structure (h1.wp-heading-inline
+		// etc.), so it runs after everything load-bearing has already set up,
+		// and is wrapped defensively in case that structure ever differs.
+		try {
+			setupTopbar();
+		} catch ( err ) {
+			if ( window.console && window.console.error ) {
+				window.console.error( 'BLT Popups: sticky header setup failed', err );
+			}
+		}
 	} );
 
 	/* ------------------------------------------------------------------ *
@@ -65,6 +84,7 @@
 				if ( removeBtn ) {
 					removeBtn.style.display = '';
 				}
+				renderLivePreview();
 			} );
 			frame.open();
 		} );
@@ -76,6 +96,7 @@
 				preview.innerHTML = '';
 				preview.classList.add( 'is-empty' );
 				removeBtn.style.display = 'none';
+				renderLivePreview();
 			} );
 		}
 	}
@@ -115,10 +136,177 @@
 			cta.addEventListener( 'change', applyCta );
 			applyCta();
 		}
+
+		var destRadios = $all( 'input[name="blt_popup_dest_type"]' );
+		if ( destRadios.length ) {
+			var applyDestType = function () {
+				var checked = destRadios.filter( function ( r ) { return r.checked; } )[ 0 ];
+				var val = checked ? checked.value : 'external';
+				$all( '[data-dest]' ).forEach( function ( el ) {
+					el.style.display = ( el.getAttribute( 'data-dest' ) === val ) ? '' : 'none';
+				} );
+			};
+			destRadios.forEach( function ( r ) { r.addEventListener( 'change', applyDestType ); } );
+			applyDestType();
+		}
 	}
 
 	/* ------------------------------------------------------------------ *
-	 * In-admin live preview (mirrors the front-end markup + CSS)
+	 * Internal destination: predictive page search
+	 *
+	 * Reuses core's own /wp/v2/search endpoint — the same one the block
+	 * editor's "Link" UI uses for its suggestions — rather than a bespoke
+	 * REST route.
+	 * ------------------------------------------------------------------ */
+
+	function setupDestinationPageSearch() {
+		var input = $( '#blt_popup_dest_page_search' );
+		var hidden = $( '#blt_popup_dest_page_id' );
+		var list = $( '.blt-popup-page-suggestions' );
+		if ( ! input || ! hidden || ! list || ! data.restSearchUrl ) {
+			return;
+		}
+
+		var debounceTimer = null;
+		var requestSeq = 0;
+		var items = [];
+		var activeIndex = -1;
+
+		function closeList() {
+			list.hidden = true;
+			list.innerHTML = '';
+			items = [];
+			activeIndex = -1;
+			input.setAttribute( 'aria-expanded', 'false' );
+		}
+
+		function selectItem( item ) {
+			hidden.value = item.id;
+			input.value = item.title;
+			closeList();
+		}
+
+		function renderMessage( text ) {
+			list.innerHTML = '';
+			var li = document.createElement( 'li' );
+			li.className = 'blt-popup-page-suggestion-empty';
+			li.textContent = text;
+			list.appendChild( li );
+			list.hidden = false;
+			input.setAttribute( 'aria-expanded', 'true' );
+		}
+
+		function renderItems( results ) {
+			list.innerHTML = '';
+			items = results;
+			activeIndex = -1;
+
+			if ( ! results.length ) {
+				renderMessage( i18n.noResults || 'No matching pages found.' );
+				return;
+			}
+
+			results.forEach( function ( item, index ) {
+				var li = document.createElement( 'li' );
+				li.className = 'blt-popup-page-suggestion';
+				li.textContent = item.title || '';
+				li.setAttribute( 'data-index', index );
+				li.setAttribute( 'role', 'option' );
+				// mousedown (not click) fires before the input's blur handler,
+				// so the selection registers before the list gets closed.
+				li.addEventListener( 'mousedown', function ( e ) {
+					e.preventDefault();
+					selectItem( item );
+				} );
+				list.appendChild( li );
+			} );
+			list.hidden = false;
+			input.setAttribute( 'aria-expanded', 'true' );
+		}
+
+		function highlight( index ) {
+			var children = $all( 'li', list );
+			children.forEach( function ( el ) { el.classList.remove( 'is-active' ); } );
+			if ( index >= 0 && children[ index ] ) {
+				children[ index ].classList.add( 'is-active' );
+				children[ index ].scrollIntoView( { block: 'nearest' } );
+			}
+			activeIndex = index;
+		}
+
+		function search( term ) {
+			var seq = ++requestSeq;
+			renderMessage( i18n.searching || 'Searching…' );
+
+			var url = data.restSearchUrl
+				+ ( data.restSearchUrl.indexOf( '?' ) === -1 ? '?' : '&' )
+				+ 'search=' + encodeURIComponent( term )
+				+ '&type=post&subtype=page&per_page=8';
+
+			fetch( url, {
+				credentials: 'same-origin',
+				headers: { 'X-WP-Nonce': data.restNonce || '' }
+			} )
+				.then( function ( r ) { return r.ok ? r.json() : []; } )
+				.then( function ( results ) {
+					// Drop stale responses from a since-superseded keystroke.
+					if ( seq !== requestSeq ) {
+						return;
+					}
+					renderItems( ( results || [] ).map( function ( r ) {
+						return { id: r.id, title: r.title || '' };
+					} ) );
+				} )
+				.catch( function () {
+					if ( seq === requestSeq ) {
+						closeList();
+					}
+				} );
+		}
+
+		input.addEventListener( 'input', function () {
+			// Typing invalidates whatever was previously selected until a
+			// suggestion is clicked again.
+			hidden.value = '';
+			var term = input.value.trim();
+			if ( debounceTimer ) {
+				clearTimeout( debounceTimer );
+			}
+			if ( term.length < 2 ) {
+				closeList();
+				return;
+			}
+			debounceTimer = setTimeout( function () { search( term ); }, 300 );
+		} );
+
+		input.addEventListener( 'keydown', function ( e ) {
+			if ( list.hidden || ! items.length ) {
+				return;
+			}
+			if ( e.key === 'ArrowDown' ) {
+				e.preventDefault();
+				highlight( Math.min( activeIndex + 1, items.length - 1 ) );
+			} else if ( e.key === 'ArrowUp' ) {
+				e.preventDefault();
+				highlight( Math.max( activeIndex - 1, 0 ) );
+			} else if ( e.key === 'Enter' ) {
+				if ( activeIndex > -1 ) {
+					e.preventDefault();
+					selectItem( items[ activeIndex ] );
+				}
+			} else if ( e.key === 'Escape' ) {
+				closeList();
+			}
+		} );
+
+		input.addEventListener( 'blur', function () {
+			// Delay so a suggestion's mousedown can run first.
+			setTimeout( closeList, 150 );
+		} );
+	}
+
+	/* ------------------------------------------------------------------ *
+	 * Live preview (sidebar, always-on) — mirrors the front-end markup
 	 * ------------------------------------------------------------------ */
 
 	function hexToRgba( hex, opacity ) {
@@ -133,105 +321,114 @@
 		return 'rgba(' + parseInt( h.substr( 0, 2 ), 16 ) + ',' + parseInt( h.substr( 2, 2 ), 16 ) + ',' + parseInt( h.substr( 4, 2 ), 16 ) + ',' + o + ')';
 	}
 
+	var ANIMATIONS = [ 'none', 'fade', 'slide', 'zoom' ];
+	function animationClass( animation ) {
+		return 'blt-popup-anim-' + ( ANIMATIONS.indexOf( animation ) !== -1 ? animation : 'zoom' );
+	}
+
 	function currentValues() {
 		var img = $( '.blt-popup-image-preview img' );
+		var animInput = $( 'input[name="blt_popup_animation"]:checked' );
 		return {
 			imageSrc: img ? img.getAttribute( 'src' ) : '',
-			destUrl: ( $( '#blt_popup_dest_url' ) || {} ).value || '',
 			ctaEnabled: !! ( $( '#blt_popup_cta_enabled' ) || {} ).checked,
 			ctaText: ( $( '#blt_popup_cta_text' ) || {} ).value || '',
 			maxWidthPct: parseInt( ( $( '#blt_popup_max_width_pct' ) || {} ).value, 10 ) || 70,
 			maxHeightPct: parseInt( ( $( '#blt_popup_max_height_pct' ) || {} ).value, 10 ) || 80,
 			overlayColor: ( $( '#blt_popup_overlay_color' ) || {} ).value || '#000000',
-			overlayOpacity: ( $( '#blt_popup_overlay_opacity' ) || {} ).value || '0.6'
+			overlayOpacity: ( $( '#blt_popup_overlay_opacity' ) || {} ).value || '0.6',
+			animation: animInput ? animInput.value : 'zoom'
 		};
 	}
 
-	var previewKeyHandler = null;
+	// A static representation of the popup, scaled to the sidebar frame
+	// rather than the viewport — sizes are percentages of the frame (which
+	// plays the role of "the viewport" here), not vw/vh. Rebuilt from scratch
+	// on every change (see renderLivePreview), so the entrance animation
+	// naturally replays each time — including when the animation choice
+	// itself changes.
+	function buildPreviewCanvas( v ) {
+		var animCls = animationClass( v.animation );
 
-	function closePreview() {
-		var existing = $( '.blt-popup-overlay' );
-		if ( existing && existing.parentNode ) {
-			existing.parentNode.removeChild( existing );
-		}
-		document.documentElement.classList.remove( 'blt-popup-open' );
-		// Remove the Esc listener on every close path (X, outside-click, Esc)
-		// so repeated previews don't accumulate stale handlers.
-		if ( previewKeyHandler ) {
-			document.removeEventListener( 'keydown', previewKeyHandler );
-			previewKeyHandler = null;
-		}
-	}
-
-	function renderPreview() {
-		var v = currentValues();
-		if ( ! v.imageSrc ) {
-			window.alert( i18n.noImage || 'Select an image first to preview the popup.' );
-			return;
-		}
-		closePreview();
-
-		var overlay = document.createElement( 'div' );
-		overlay.className = 'blt-popup-overlay';
-		overlay.style.backgroundColor = hexToRgba( v.overlayColor, v.overlayOpacity );
+		var canvas = document.createElement( 'div' );
+		canvas.className = 'blt-popup-preview-canvas ' + animCls;
+		canvas.style.backgroundColor = hexToRgba( v.overlayColor, v.overlayOpacity );
 
 		var modal = document.createElement( 'div' );
-		modal.className = 'blt-popup-modal';
+		modal.className = 'blt-popup-modal ' + animCls;
 		var maxW = Math.min( Math.max( v.maxWidthPct, 10 ), 100 );
 		var maxH = Math.min( Math.max( v.maxHeightPct, 10 ), 100 );
-		modal.style.maxWidth = 'min(' + maxW + 'vw, 1400px)';
-		modal.style.maxHeight = maxH + 'vh';
+		modal.style.maxWidth = maxW + '%';
+		modal.style.maxHeight = maxH + '%';
 
-		var closeBtn = document.createElement( 'button' );
+		// Decorative only (no close/activate behaviour) — this is a mockup of
+		// what the front end will render, not an interactive instance of it.
+		var closeBtn = document.createElement( 'span' );
 		closeBtn.className = 'blt-popup-close';
-		closeBtn.type = 'button';
-		closeBtn.setAttribute( 'aria-label', i18n.close || 'Close' );
+		closeBtn.setAttribute( 'aria-hidden', 'true' );
 		closeBtn.innerHTML = '&times;';
-		closeBtn.addEventListener( 'click', closePreview );
 
 		var img = document.createElement( 'img' );
 		img.className = 'blt-popup-img';
 		img.src = v.imageSrc;
 		img.alt = '';
-		img.style.maxHeight = maxH + 'vh';
 
 		modal.appendChild( closeBtn );
 		modal.appendChild( img );
 
 		if ( v.ctaEnabled ) {
-			var cta = document.createElement( 'button' );
+			var cta = document.createElement( 'span' );
 			cta.className = 'blt-popup-cta';
-			cta.type = 'button';
 			cta.textContent = v.ctaText || i18n.ctaFallback || 'Learn more';
 			modal.appendChild( cta );
 		}
 
-		overlay.appendChild( modal );
-		overlay.addEventListener( 'click', function ( e ) {
-			if ( e.target === overlay ) {
-				closePreview();
-			}
-		} );
-		previewKeyHandler = function ( e ) {
-			if ( e.key === 'Escape' || e.keyCode === 27 ) {
-				closePreview();
-			}
-		};
-		document.addEventListener( 'keydown', previewKeyHandler );
-
-		document.body.appendChild( overlay );
-		document.documentElement.classList.add( 'blt-popup-open' );
-		closeBtn.focus();
+		canvas.appendChild( modal );
+		return canvas;
 	}
 
-	function setupPreview() {
-		var btn = $( '.blt-popup-preview-btn' );
-		if ( btn ) {
-			btn.addEventListener( 'click', function ( e ) {
-				e.preventDefault();
-				renderPreview();
-			} );
+	function renderLivePreview() {
+		var frame = $( '.blt-popup-preview-frame' );
+		if ( ! frame ) {
+			return;
 		}
+		var v = currentValues();
+		frame.innerHTML = '';
+		if ( ! v.imageSrc ) {
+			var empty = document.createElement( 'p' );
+			empty.className = 'blt-popup-preview-empty';
+			empty.textContent = i18n.previewEmpty || 'Select an image to preview your popup.';
+			frame.appendChild( empty );
+			return;
+		}
+		frame.appendChild( buildPreviewCanvas( v ) );
+	}
+
+	var livePreviewTimer = null;
+	function scheduleLivePreviewUpdate() {
+		if ( livePreviewTimer ) {
+			clearTimeout( livePreviewTimer );
+		}
+		livePreviewTimer = setTimeout( renderLivePreview, 120 );
+	}
+
+	function setupDeviceTabs() {
+		var tabs = $all( '.blt-popup-device-tab' );
+		var frame = $( '.blt-popup-preview-frame' );
+		if ( ! tabs.length || ! frame ) {
+			return;
+		}
+		tabs.forEach( function ( tab ) {
+			tab.addEventListener( 'click', function () {
+				tabs.forEach( function ( t ) {
+					t.classList.remove( 'is-active' );
+					t.setAttribute( 'aria-selected', 'false' );
+				} );
+				tab.classList.add( 'is-active' );
+				tab.setAttribute( 'aria-selected', 'true' );
+				frame.setAttribute( 'data-device', tab.getAttribute( 'data-device' ) || 'desktop' );
+			} );
+		} );
 	}
 
 	/* ------------------------------------------------------------------ *
@@ -270,5 +467,84 @@
 				status.form.submit();
 			}
 		} );
+	}
+
+	/* ------------------------------------------------------------------ *
+	 * Sticky header bar
+	 *
+	 * Builds the custom top bar by relocating WP's own title heading and
+	 * "Add New" link into it (real nodes, not clones, so nothing about them
+	 * changes) and proxy-clicking the real #save-post/#publish buttons —
+	 * the same technique setupActivate() already uses above. Nothing about
+	 * how WP saves/publishes is touched; the native Publish box is left in
+	 * place as a fallback, just visually superseded by this bar.
+	 * ------------------------------------------------------------------ */
+
+	function setupTopbar() {
+		var wrap = $( '.wrap' );
+		var heading = wrap ? wrap.querySelector( ':scope > h1.wp-heading-inline' ) : null;
+		if ( ! wrap || ! heading ) {
+			return;
+		}
+		var addNew = wrap.querySelector( ':scope > a.page-title-action' );
+
+		var bar = document.createElement( 'div' );
+		bar.className = 'blt-popup-topbar';
+
+		if ( data.popupListUrl ) {
+			var back = document.createElement( 'a' );
+			back.className = 'blt-popup-topbar-back';
+			back.href = data.popupListUrl;
+			back.textContent = '← ' + ( i18n.allPopups || 'All Popups' );
+			bar.appendChild( back );
+		}
+
+		var titleWrap = document.createElement( 'div' );
+		titleWrap.className = 'blt-popup-topbar-title';
+		titleWrap.appendChild( heading ); // Relocates the real node — nothing left behind to hide.
+		bar.appendChild( titleWrap );
+
+		var spacer = document.createElement( 'div' );
+		spacer.className = 'blt-popup-topbar-spacer';
+		bar.appendChild( spacer );
+
+		if ( addNew ) {
+			addNew.classList.add( 'blt-popup-topbar-addnew', 'button' );
+			bar.appendChild( addNew ); // Relocates the real node.
+		}
+
+		var actions = document.createElement( 'div' );
+		actions.className = 'blt-popup-topbar-actions';
+
+		// Proxy buttons call .click() on the real (still-present, just
+		// visually superseded) native buttons rather than reimplementing
+		// save/publish — so autosave, revisions and locking all keep
+		// working exactly as WP core wired them.
+		var saveDraft = document.getElementById( 'save-post' );
+		if ( saveDraft ) {
+			var draftBtn = document.createElement( 'button' );
+			draftBtn.type = 'button';
+			draftBtn.className = 'button blt-popup-topbar-save';
+			draftBtn.textContent = saveDraft.value || i18n.saveDraft || 'Save Draft';
+			draftBtn.addEventListener( 'click', function () {
+				saveDraft.click();
+			} );
+			actions.appendChild( draftBtn );
+		}
+
+		var publish = document.getElementById( 'publish' );
+		if ( publish ) {
+			var publishBtn = document.createElement( 'button' );
+			publishBtn.type = 'button';
+			publishBtn.className = 'button button-primary blt-popup-topbar-publish';
+			publishBtn.textContent = publish.value || i18n.publish || 'Publish';
+			publishBtn.addEventListener( 'click', function () {
+				publish.click();
+			} );
+			actions.appendChild( publishBtn );
+		}
+
+		bar.appendChild( actions );
+		wrap.insertBefore( bar, wrap.firstChild );
 	}
 } )();
