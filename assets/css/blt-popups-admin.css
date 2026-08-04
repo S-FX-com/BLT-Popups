@@ -3,16 +3,10 @@
  */
 
 /* ---- Sticky header bar ----
- * This stylesheet only loads on the popup edit screen (see enqueue()), so
- * hiding the admin bar here can't leak onto any other wp-admin page. */
-#wpadminbar {
-	display: none !important;
-}
-
-html.wp-toolbar {
-	padding-top: 0 !important;
-}
-
+ * This stylesheet loads on both the popup edit screen and the list table
+ * (see enqueue()), so hiding the admin bar for the edit screen's sticky
+ * .blt-popup-topbar replacement is done via an inline style scoped to that
+ * screen only — see enqueue() — instead of here. */
 .blt-popup-topbar {
 	position: sticky;
 	top: 0;
