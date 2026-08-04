@@ -103,8 +103,6 @@ html.blt-popup-open {
 	padding: 12px 28px;
 	border: none;
 	border-radius: 4px;
-	background: #111111;
-	color: #ffffff;
 	font-size: 16px;
 	font-weight: 600;
 	line-height: 1.2;
@@ -116,6 +114,16 @@ html.blt-popup-open {
 .blt-popup-cta:focus {
 	opacity: 0.85;
 	outline: none;
+}
+
+/* Default look for the "Automatic" button style, unless a theme's own
+   .btn--primary / .btn--secondary class (added in render(), see
+   blt-popups-frontend.js) supplies its own colors. The "Custom color" style
+   never adds either class, instead setting these two properties inline,
+   which wins over this rule regardless of specificity. */
+.blt-popup-cta:not( .btn--primary ):not( .btn--secondary ) {
+	background: #111111;
+	color: #ffffff;
 }
 
 @keyframes blt-popup-fade {

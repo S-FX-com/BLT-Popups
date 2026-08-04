@@ -67,6 +67,8 @@ class BLT_Popups_Meta {
 		$dest_page_id    = (int) $get( 'dest_page_id' );
 		$dest_page_title = $dest_page_id ? get_the_title( $dest_page_id ) : '';
 		$animation       = $get( 'animation' );
+		$cta_enabled     = (bool) $get( 'cta_enabled' );
+		$cta_style       = $get( 'cta_style' );
 
 		// icon => [ label, SVG path markup ], used by the animation picker below.
 		$animation_options = array(
@@ -150,10 +152,50 @@ class BLT_Popups_Meta {
 						</label>
 					</p>
 
-					<p class="blt-popup-field blt-popup-cta-text" <?php echo $get( 'cta_enabled' ) ? '' : 'style="display:none"'; ?>>
+					<p class="blt-popup-field blt-popup-cta-conditional" <?php echo $cta_enabled ? '' : 'style="display:none"'; ?>>
 						<label class="blt-popup-label" for="blt_popup_cta_text"><?php esc_html_e( 'Button text', 'blt-popups' ); ?></label>
 						<input type="text" class="widefat" name="blt_popup_cta_text" id="blt_popup_cta_text" value="<?php echo esc_attr( $get( 'cta_text' ) ); ?>" placeholder="<?php esc_attr_e( 'Learn more', 'blt-popups' ); ?>" />
 					</p>
+
+					<p class="blt-popup-field blt-popup-cta-conditional" <?php echo $cta_enabled ? '' : 'style="display:none"'; ?>>
+						<span class="blt-popup-label"><?php esc_html_e( 'Button style', 'blt-popups' ); ?></span>
+						<div class="blt-popup-segmented" role="radiogroup" aria-label="<?php esc_attr_e( 'Button style', 'blt-popups' ); ?>">
+							<label class="blt-popup-segmented-option">
+								<input type="radio" name="blt_popup_cta_style" value="automatic" <?php checked( $cta_style, 'automatic' ); ?> />
+								<span><?php esc_html_e( 'Automatic', 'blt-popups' ); ?></span>
+							</label>
+							<label class="blt-popup-segmented-option">
+								<input type="radio" name="blt_popup_cta_style" value="custom" <?php checked( $cta_style, 'custom' ); ?> />
+								<span><?php esc_html_e( 'Custom color', 'blt-popups' ); ?></span>
+							</label>
+						</div>
+					</p>
+
+					<p class="blt-popup-field blt-popup-cta-conditional" data-cta-style="automatic" <?php echo ( $cta_enabled && 'automatic' === $cta_style ) ? '' : 'style="display:none"'; ?>>
+						<span class="blt-popup-label"><?php esc_html_e( 'Automatic style', 'blt-popups' ); ?></span>
+						<div class="blt-popup-segmented" role="radiogroup" aria-label="<?php esc_attr_e( 'Automatic button style', 'blt-popups' ); ?>">
+							<label class="blt-popup-segmented-option">
+								<input type="radio" name="blt_popup_cta_variant" value="primary" <?php checked( $get( 'cta_variant' ), 'primary' ); ?> />
+								<span><?php esc_html_e( 'Primary', 'blt-popups' ); ?></span>
+							</label>
+							<label class="blt-popup-segmented-option">
+								<input type="radio" name="blt_popup_cta_variant" value="secondary" <?php checked( $get( 'cta_variant' ), 'secondary' ); ?> />
+								<span><?php esc_html_e( 'Secondary', 'blt-popups' ); ?></span>
+							</label>
+						</div>
+						<span class="description"><?php esc_html_e( 'Applies your theme\'s .btn--primary / .btn--secondary button style.', 'blt-popups' ); ?></span>
+					</p>
+
+					<div class="blt-popup-field-row blt-popup-cta-conditional" data-cta-style="custom" <?php echo ( $cta_enabled && 'custom' === $cta_style ) ? '' : 'style="display:none"'; ?>>
+						<p class="blt-popup-field">
+							<label class="blt-popup-label" for="blt_popup_cta_bg_color"><?php esc_html_e( 'Button color', 'blt-popups' ); ?></label>
+							<input type="color" name="blt_popup_cta_bg_color" id="blt_popup_cta_bg_color" value="<?php echo esc_attr( $get( 'cta_bg_color' ) ); ?>" />
+						</p>
+						<p class="blt-popup-field">
+							<label class="blt-popup-label" for="blt_popup_cta_text_color"><?php esc_html_e( 'Button text color', 'blt-popups' ); ?></label>
+							<input type="color" name="blt_popup_cta_text_color" id="blt_popup_cta_text_color" value="<?php echo esc_attr( $get( 'cta_text_color' ) ); ?>" />
+						</p>
+					</div>
 				</div>
 			</details>
 
@@ -386,6 +428,10 @@ class BLT_Popups_Meta {
 			'dest_new_tab',
 			'cta_enabled',
 			'cta_text',
+			'cta_style',
+			'cta_variant',
+			'cta_bg_color',
+			'cta_text_color',
 			'max_width_pct',
 			'max_height_pct',
 			'overlay_color',

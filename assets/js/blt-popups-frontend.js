@@ -243,6 +243,12 @@
 			cta.className = 'blt-popup-cta';
 			cta.setAttribute( 'type', 'button' );
 			cta.textContent = popup.cta.text || i18n.ctaFallback || 'Learn more';
+			if ( 'custom' === popup.cta.style ) {
+				cta.style.backgroundColor = popup.cta.bgColor || '#111111';
+				cta.style.color = popup.cta.textColor || '#ffffff';
+			} else {
+				cta.classList.add( 'secondary' === popup.cta.variant ? 'btn--secondary' : 'btn--primary' );
+			}
 			cta.addEventListener( 'click', navigate );
 			modal.appendChild( cta );
 		}

@@ -112,6 +112,24 @@ class BLT_Popups_CPT {
 				'type'    => 'text',
 				'default' => '',
 			),
+			'cta_style'       => array(
+				'type'    => 'enum',
+				'default' => 'automatic',
+				'values'  => array( 'automatic', 'custom' ),
+			),
+			'cta_variant'     => array(
+				'type'    => 'enum',
+				'default' => 'primary',
+				'values'  => array( 'primary', 'secondary' ),
+			),
+			'cta_bg_color'    => array(
+				'type'    => 'hex',
+				'default' => '#111111',
+			),
+			'cta_text_color'  => array(
+				'type'    => 'hex',
+				'default' => '#ffffff',
+			),
 			'max_width_pct'   => array(
 				'type'    => 'int_range',
 				'default' => 70,
