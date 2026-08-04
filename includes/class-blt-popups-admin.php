@@ -651,16 +651,6 @@ class BLT_Popups_Admin {
 
 		if ( $is_editor ) {
 			wp_enqueue_media();
-
-			// The editor's sticky .blt-popup-topbar (built by JS, see
-			// setupTopbar()) replaces the native admin bar there, so it's
-			// hidden only for this screen — added here rather than in the
-			// shared stylesheet so it can never leak onto the list table,
-			// which has no topbar replacement for it.
-			wp_add_inline_style(
-				'blt-popups-admin',
-				'#wpadminbar{display:none!important}html.wp-toolbar{padding-top:0!important}'
-			);
 		}
 
 		wp_enqueue_script(
