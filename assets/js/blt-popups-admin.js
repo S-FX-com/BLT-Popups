@@ -361,7 +361,12 @@
 	// on every change (see renderLivePreview), so the entrance animation
 	// naturally replays each time — including when the animation choice
 	// itself changes.
-	function buildPreviewCanvas( v ) {
+	// .blt-popup-preview-canvas's own CSS padding (see blt-popups-admin.css) —
+	// subtracted from the measured frame height below to get the box the
+	// modal actually has to fit inside.
+	var PREVIEW_CANVAS_PADDING = 14 * 2;
+
+	function buildPreviewCanvas( v, frameHeight ) {
 		var animCls = animationClass( v.animation );
 
 		var canvas = document.createElement( 'div' );
@@ -386,6 +391,15 @@
 		img.className = 'blt-popup-img';
 		img.src = v.imageSrc;
 		img.alt = '';
+		// modal's max-height above is a cap on the box, not a clip on its
+		// children — same as the front end (see render() in
+		// blt-popups-frontend.js), the image needs its own max-height or a
+		// tall image just overflows the frame and gets hard-clipped by its
+		// overflow:hidden. The front end anchors this to the real viewport
+		// (vh); here the frame is a fixed-size stand-in for it, so the budget
+		// is computed from its actual measured height instead.
+		var available = Math.max( 0, ( frameHeight || 220 ) - PREVIEW_CANVAS_PADDING );
+		img.style.maxHeight = ( available * maxH / 100 ) + 'px';
 
 		modal.appendChild( closeBtn );
 		modal.appendChild( img );
@@ -423,7 +437,7 @@
 			frame.appendChild( empty );
 			return;
 		}
-		frame.appendChild( buildPreviewCanvas( v ) );
+		frame.appendChild( buildPreviewCanvas( v, frame.clientHeight ) );
 	}
 
 	var livePreviewTimer = null;

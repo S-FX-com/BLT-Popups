@@ -3,13 +3,12 @@
  */
 
 /* ---- Sticky header bar ----
- * This stylesheet loads on both the popup edit screen and the list table
- * (see enqueue()), so hiding the admin bar for the edit screen's sticky
- * .blt-popup-topbar replacement is done via an inline style scoped to that
- * screen only — see enqueue() — instead of here. */
+ * Docks just below the native admin bar (32px, WP core's own #wpadminbar
+ * height) rather than hiding it, so it sticks beneath — not over — the
+ * always-visible toolbar when the page scrolls. */
 .blt-popup-topbar {
 	position: sticky;
-	top: 0;
+	top: 32px;
 	z-index: 30;
 	display: flex;
 	flex-wrap: wrap;
