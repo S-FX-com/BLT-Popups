@@ -100,7 +100,7 @@ class BLT_Popups_REST {
 		if ( get_post_type( $active_id ) !== BLT_POPUPS_CPT ) {
 			return $response;
 		}
-		if ( BLT_Popups_CPT::get( $active_id, 'status' ) !== BLT_Popups_CPT::STATUS_ACTIVE ) {
+		if ( 'publish' !== get_post_status( $active_id ) ) {
 			return $response;
 		}
 

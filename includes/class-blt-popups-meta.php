@@ -11,9 +11,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Renders the single-column, grouped meta box on the popup editor and
- * sanitizes/persists every field on save. Activation performed here routes
- * through {@see BLT_Popups_Admin} so single-active enforcement stays in one
- * place.
+ * sanitizes/persists every field on save. Whether the popup is live is native
+ * WordPress post_status now, handled entirely by {@see BLT_Popups_Admin} via
+ * the native Publish/Draft box — this class no longer touches it.
  */
 class BLT_Popups_Meta {
 
@@ -328,45 +328,6 @@ class BLT_Popups_Meta {
 					</p>
 				</div>
 			</details>
-
-			<details class="blt-popup-section" open>
-				<?php $section_header( 6, __( 'Status', 'blt-popups' ), __( 'Set the status of your popup.', 'blt-popups' ) ); ?>
-				<div class="blt-popup-section-body">
-
-					<?php
-					$status       = $get( 'status' );
-					$active_id    = BLT_Popups_Admin::get_active_id();
-					$is_active    = ( $active_id === $post_id );
-					// Making a popup live is a site-wide, visitor-facing action, so
-					// it is restricted to admins (matching the preview bypass).
-					$can_activate = current_user_can( 'manage_options' );
-					?>
-
-					<p class="blt-popup-field">
-						<label class="blt-popup-label" for="blt_popup_status"><?php esc_html_e( 'Status', 'blt-popups' ); ?></label>
-						<select name="blt_popup_status" id="blt_popup_status">
-							<option value="draft" <?php selected( $status, 'draft' ); ?>><?php esc_html_e( 'Draft', 'blt-popups' ); ?></option>
-							<option value="inactive" <?php selected( $status, 'inactive' ); ?>><?php esc_html_e( 'Inactive', 'blt-popups' ); ?></option>
-							<?php if ( $can_activate || $is_active ) : ?>
-								<option value="active" <?php selected( $status, 'active' ); ?>><?php esc_html_e( 'Active (live)', 'blt-popups' ); ?></option>
-							<?php endif; ?>
-						</select>
-					</p>
-
-					<?php if ( $is_active ) : ?>
-						<p class="blt-popup-live-note"><?php esc_html_e( 'This popup is currently live on the site.', 'blt-popups' ); ?></p>
-					<?php elseif ( ! $can_activate ) : ?>
-						<p class="description"><?php esc_html_e( 'Only an administrator can make a popup live.', 'blt-popups' ); ?></p>
-					<?php endif; ?>
-
-					<?php if ( $can_activate ) : ?>
-						<p class="blt-popup-actions">
-							<button type="button" class="button button-primary blt-popup-activate-btn"><?php esc_html_e( 'Activate (make live)', 'blt-popups' ); ?></button>
-						</p>
-					<?php endif; ?>
-					<p class="description"><?php esc_html_e( 'Only one popup can be live at a time. Activating this one deactivates any other active popup.', 'blt-popups' ); ?></p>
-				</div>
-			</details>
 		</div>
 		<?php
 	}
@@ -458,39 +419,9 @@ class BLT_Popups_Meta {
 		$target_value = self::collect_target_value( $mode );
 		update_post_meta( $post_id, BLT_Popups_CPT::meta_key( 'target_value' ), $target_value );
 
-		// Status + single-active enforcement.
-		$status = self::sanitize_field(
-			'enum',
-			isset( $_POST['blt_popup_status'] ) ? wp_unslash( $_POST['blt_popup_status'] ) : '',
-			$fields['status']
-		);
-
-		$already_active = ( BLT_Popups_Admin::get_active_id() === (int) $post_id );
-
-		if ( BLT_Popups_CPT::STATUS_ACTIVE === $status ) {
-			if ( current_user_can( 'manage_options' ) ) {
-				// Routes through Admin so the option + sibling-deactivation stay
-				// in one place. This also writes this post's status meta = active.
-				BLT_Popups_Admin::set_active( $post_id );
-			} elseif ( $already_active ) {
-				// A non-admin saving the popup that is already live: keep it
-				// live (don't silently deactivate), but don't let them change
-				// the site-wide activation.
-				update_post_meta( $post_id, BLT_Popups_CPT::meta_key( 'status' ), BLT_Popups_CPT::STATUS_ACTIVE );
-			} else {
-				// Making a popup live is a site-wide, visitor-facing action, so
-				// it requires manage_options (matching the preview bypass). A
-				// non-admin's "active" request is saved as inactive instead.
-				update_post_meta( $post_id, BLT_Popups_CPT::meta_key( 'status' ), BLT_Popups_CPT::STATUS_INACTIVE );
-			}
-		} else {
-			update_post_meta( $post_id, BLT_Popups_CPT::meta_key( 'status' ), $status );
-			// If this popup was the live one and is being taken off active,
-			// clear the site-wide pointer.
-			if ( $already_active ) {
-				BLT_Popups_Admin::clear_active( $post_id );
-			}
-		}
+		// Whether this popup is live is native post_status now (see
+		// BLT_Popups_Admin::guard_publish_capability() and
+		// ::handle_status_transition()) — nothing to save here.
 	}
 
 	/**

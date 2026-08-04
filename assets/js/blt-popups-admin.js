@@ -1,7 +1,7 @@
 /**
  * BLT Popups — editor scripts: media picker, conditional fields, destination
- * page search, the always-on sidebar live preview, and the activate
- * confirmation. Vanilla JS + wp.media.
+ * page search, the always-on sidebar live preview, and the publish
+ * confirmation — plus the list-table quick-toggle switch. Vanilla JS + wp.media.
  */
 ( function () {
 	'use strict';
@@ -17,6 +17,10 @@
 	}
 
 	document.addEventListener( 'DOMContentLoaded', function () {
+		// List-table quick toggle — runs on the popup list screen, which has
+		// no .blt-popup-metabox, so this must not be gated on it below.
+		setupStatusToggles();
+
 		var box = $( '.blt-popup-metabox' );
 		if ( ! box ) {
 			return;
@@ -25,7 +29,7 @@
 		setupMedia();
 		setupConditionalFields();
 		setupDestinationPageSearch();
-		setupActivate();
+		setupPublishConfirm();
 
 		// Live preview: render once from the fields' initial state, then keep
 		// it in sync with any change inside the settings box.
@@ -432,41 +436,130 @@
 	}
 
 	/* ------------------------------------------------------------------ *
-	 * Activate
+	 * Publish confirm (editor) — publishing IS activating, natively
 	 * ------------------------------------------------------------------ */
 
-	function setupActivate() {
-		var btn = $( '.blt-popup-activate-btn' );
-		var status = $( '#blt_popup_status' );
-		if ( ! btn || ! status ) {
+	function setupPublishConfirm() {
+		var publishBtn = document.getElementById( 'publish' );
+		if ( ! publishBtn ) {
 			return;
 		}
-		btn.addEventListener( 'click', function ( e ) {
-			e.preventDefault();
-			var msg;
-			// wp_localize_script casts scalars to strings, so an int 0 arrives as
-			// "0" — truthy in JS. Normalise before testing/comparing.
-			var activeId = parseInt( data.activeId, 10 ) || 0;
-			var currentId = parseInt( data.currentId, 10 ) || 0;
-			if ( activeId && activeId !== currentId ) {
-				msg = ( i18n.confirmReplace || 'This will deactivate the currently live popup "%s". Continue?' )
-					.replace( '%s', data.activeTitle || '' );
-			} else {
-				msg = i18n.confirmActivate || 'Make this popup live on the site now?';
-			}
+		// wp_localize_script casts scalars to strings, so an int 0 arrives as
+		// "0" — truthy in JS. Normalise before testing/comparing.
+		var activeId = parseInt( data.activeId, 10 ) || 0;
+		var currentId = parseInt( data.currentId, 10 ) || 0;
+		var alreadyLive = data.currentPostStatus === 'publish';
+
+		// Only a popup that isn't already live, and only when some other
+		// popup currently is, needs a heads-up before the click proceeds —
+		// clicking "Update" on an already-live popup doesn't change anything.
+		if ( alreadyLive || ! activeId || activeId === currentId ) {
+			return;
+		}
+
+		publishBtn.addEventListener( 'click', function ( e ) {
+			var msg = ( i18n.confirmReplace || 'This will deactivate the currently live popup "%s". Continue?' )
+				.replace( '%s', data.activeTitle || '' );
 			if ( ! window.confirm( msg ) ) {
-				return;
-			}
-			status.value = 'active';
-			// Save through the normal editor flow so every field persists and
-			// single-active enforcement runs server-side.
-			var publish = document.getElementById( 'publish' ) || document.getElementById( 'save-post' );
-			if ( publish ) {
-				publish.click();
-			} else if ( status.form ) {
-				status.form.submit();
+				e.preventDefault();
 			}
 		} );
+	}
+
+	/* ------------------------------------------------------------------ *
+	 * List-table quick toggle
+	 * ------------------------------------------------------------------ */
+
+	function setupStatusToggles() {
+		var toggles = $all( '.blt-popup-toggle-input' );
+		if ( ! toggles.length || ! data.ajaxUrl ) {
+			return;
+		}
+
+		toggles.forEach( function ( input ) {
+			input.addEventListener( 'change', function () {
+				var activate = input.checked;
+				var cell = input.closest( '.blt-popup-status-cell' );
+				var postId = cell ? cell.getAttribute( 'data-post-id' ) : '';
+				if ( ! postId ) {
+					return;
+				}
+
+				var msg;
+				if ( activate ) {
+					var activeId = parseInt( data.activeId, 10 ) || 0;
+					if ( activeId && String( activeId ) !== postId ) {
+						msg = ( i18n.confirmReplace || 'This will deactivate the currently live popup "%s". Continue?' )
+							.replace( '%s', data.activeTitle || '' );
+					} else {
+						msg = i18n.confirmActivate || 'Make this popup live on the site now?';
+					}
+					if ( ! window.confirm( msg ) ) {
+						input.checked = false;
+						return;
+					}
+				}
+
+				input.disabled = true;
+
+				var body = 'action=blt_popups_toggle_status'
+					+ '&nonce=' + encodeURIComponent( data.toggleNonce || '' )
+					+ '&post_id=' + encodeURIComponent( postId )
+					+ '&activate=' + ( activate ? '1' : '' );
+
+				fetch( data.ajaxUrl, {
+					method: 'POST',
+					credentials: 'same-origin',
+					headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+					body: body
+				} )
+					.then( function ( r ) { return r.json(); } )
+					.then( function ( res ) {
+						input.disabled = false;
+						if ( ! res || ! res.success ) {
+							input.checked = ! activate;
+							window.alert( ( res && res.data && res.data.message ) || i18n.toggleError || 'Could not update this popup. Please try again.' );
+							return;
+						}
+
+						data.activeId = res.data.activeId;
+						data.activeTitle = res.data.activeTitle;
+						updateStatusCell( cell, res.data.isLive );
+
+						// Any other row previously showing as live is now
+						// drafted server-side — reflect that without a reload.
+						$all( '.blt-popup-status-cell' ).forEach( function ( otherCell ) {
+							if ( otherCell === cell ) {
+								return;
+							}
+							if ( String( res.data.activeId ) !== otherCell.getAttribute( 'data-post-id' ) ) {
+								updateStatusCell( otherCell, false );
+							}
+						} );
+					} )
+					.catch( function () {
+						input.disabled = false;
+						input.checked = ! activate;
+						window.alert( i18n.toggleError || 'Could not update this popup. Please try again.' );
+					} );
+			} );
+		} );
+	}
+
+	function updateStatusCell( cell, isLive ) {
+		if ( ! cell ) {
+			return;
+		}
+		var input = cell.querySelector( '.blt-popup-toggle-input' );
+		var badge = cell.querySelector( '.blt-popup-badge' );
+		if ( input ) {
+			input.checked = isLive;
+		}
+		if ( badge ) {
+			badge.textContent = isLive ? ( i18n.live || 'Live' ) : ( i18n.draft || 'Draft' );
+			badge.classList.remove( 'blt-popup-badge-active', 'blt-popup-badge-draft' );
+			badge.classList.add( isLive ? 'blt-popup-badge-active' : 'blt-popup-badge-draft' );
+		}
 	}
 
 	/* ------------------------------------------------------------------ *
@@ -474,10 +567,9 @@
 	 *
 	 * Builds the custom top bar by relocating WP's own title heading and
 	 * "Add New" link into it (real nodes, not clones, so nothing about them
-	 * changes) and proxy-clicking the real #save-post/#publish buttons —
-	 * the same technique setupActivate() already uses above. Nothing about
-	 * how WP saves/publishes is touched; the native Publish box is left in
-	 * place as a fallback, just visually superseded by this bar.
+	 * changes) and proxy-clicking the real #save-post/#publish buttons.
+	 * Nothing about how WP saves/publishes is touched; the native Publish box
+	 * is left in place as a fallback, just visually superseded by this bar.
 	 * ------------------------------------------------------------------ */
 
 	function setupTopbar() {

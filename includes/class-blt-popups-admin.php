@@ -10,11 +10,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Owns the "only one popup is live" invariant (via the
- * BLT_POPUPS_ACTIVE_OPTION option, the single source of truth) plus the CPT
- * list-table presentation and editor asset enqueue.
+ * Owns the "only one popup is live" invariant — built entirely on WordPress's
+ * native publish/draft post status, which is the single source of truth (a
+ * popup is live if and only if its post_status is 'publish') — plus the CPT
+ * list-table presentation, the quick-toggle switch, and editor asset enqueue.
  */
 class BLT_Popups_Admin {
+
+	const TOGGLE_NONCE_ACTION = 'blt_popups_toggle_status';
+	const MIGRATED_OPTION     = 'blt_popups_status_migrated';
 
 	/**
 	 * Hook registration (admin only).
@@ -29,14 +33,27 @@ class BLT_Popups_Admin {
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_side_meta_boxes' ) );
 		add_action( 'edit_form_after_title', array( __CLASS__, 'after_title_strip' ) );
+		add_action( 'post_submitbox_misc_actions', array( __CLASS__, 'publish_box_note' ) );
 
 		// Duplicate action: list-table row link + the handler it points at.
 		add_filter( 'post_row_actions', array( __CLASS__, 'add_duplicate_row_action' ), 10, 2 );
 		add_action( 'admin_action_blt_popups_duplicate', array( __CLASS__, 'handle_duplicate' ) );
 
-		// Keep the pointer honest when the live popup is trashed or deleted.
-		add_action( 'wp_trash_post', array( __CLASS__, 'maybe_clear_on_removal' ) );
-		add_action( 'before_delete_post', array( __CLASS__, 'maybe_clear_on_removal' ) );
+		// The single-active invariant, enforced wherever post_status can
+		// change: the editor's Publish/Draft box, Quick Edit, Bulk Edit, and
+		// our own list-table toggle below.
+		add_action( 'transition_post_status', array( __CLASS__, 'handle_status_transition' ), 10, 3 );
+		// Only an administrator may make a popup live (matches the preview
+		// bypass's capability check) — enforced at save time regardless of
+		// which UI path attempted the publish.
+		add_filter( 'wp_insert_post_data', array( __CLASS__, 'guard_publish_capability' ), 10, 2 );
+
+		// Quick-toggle switch in the list table.
+		add_action( 'wp_ajax_blt_popups_toggle_status', array( __CLASS__, 'ajax_toggle_status' ) );
+
+		// One-time migration from the old custom "status" meta field to
+		// native post_status, for sites upgrading from an earlier version.
+		add_action( 'admin_init', array( __CLASS__, 'maybe_migrate_legacy_status' ) );
 	}
 
 	/**
@@ -54,6 +71,11 @@ class BLT_Popups_Admin {
 
 	/* --------------------------------------------------------------------- *
 	 * Single-active enforcement (the invariant lives here).
+	 *
+	 * "Live" simply means post_status === 'publish': there is no separate
+	 * pointer/option to keep in sync, so the post itself is always the
+	 * single source of truth, however its status was changed (the editor's
+	 * Publish box, Quick Edit, Bulk Edit, or the list-table toggle).
 	 * --------------------------------------------------------------------- */
 
 	/**
@@ -62,64 +84,63 @@ class BLT_Popups_Admin {
 	 * @return int
 	 */
 	public static function get_active_id() {
-		return (int) get_option( BLT_POPUPS_ACTIVE_OPTION, 0 );
+		$ids = get_posts(
+			array(
+				'post_type'      => BLT_POPUPS_CPT,
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+				'orderby'        => 'modified',
+				'order'          => 'DESC',
+			)
+		);
+		return $ids ? (int) $ids[0] : 0;
 	}
 
 	/**
-	 * Make a popup live: flip every other active popup to inactive, mark this
-	 * one active, and record it as the single site-wide active popup.
+	 * Keep the "only one live popup" invariant whenever a popup's post_status
+	 * changes, regardless of which UI path changed it.
 	 *
-	 * @param int $post_id Popup ID to activate.
+	 * @param string  $new_status New post status.
+	 * @param string  $old_status Previous post status.
+	 * @param WP_Post $post       The popup.
 	 * @return void
 	 */
-	public static function set_active( $post_id ) {
-		$post_id = (int) $post_id;
+	public static function handle_status_transition( $new_status, $old_status, $post ) {
+		if ( BLT_POPUPS_CPT !== $post->post_type || $new_status === $old_status ) {
+			return;
+		}
 
-		// Demote any other popup currently flagged active.
+		if ( 'publish' === $new_status ) {
+			self::demote_other_live_popups( (int) $post->ID );
+		}
+	}
+
+	/**
+	 * Publishing a popup makes it *the* live popup, so every other popup
+	 * currently marked live is demoted to draft.
+	 *
+	 * @param int $post_id Popup being made live.
+	 * @return void
+	 */
+	private static function demote_other_live_popups( $post_id ) {
 		$others = get_posts(
 			array(
 				'post_type'      => BLT_POPUPS_CPT,
-				'post_status'    => 'any',
+				'post_status'    => 'publish',
 				'posts_per_page' => -1,
 				'fields'         => 'ids',
 				'exclude'        => array( $post_id ),
-				'meta_key'       => BLT_Popups_CPT::meta_key( 'status' ),
-				'meta_value'     => BLT_Popups_CPT::STATUS_ACTIVE,
 			)
 		);
 		foreach ( $others as $other_id ) {
-			update_post_meta( $other_id, BLT_Popups_CPT::meta_key( 'status' ), BLT_Popups_CPT::STATUS_INACTIVE );
+			wp_update_post(
+				array(
+					'ID'          => $other_id,
+					'post_status' => 'draft',
+				)
+			);
 		}
-
-		update_post_meta( $post_id, BLT_Popups_CPT::meta_key( 'status' ), BLT_Popups_CPT::STATUS_ACTIVE );
-		update_option( BLT_POPUPS_ACTIVE_OPTION, $post_id );
-	}
-
-	/**
-	 * Clear the site-wide pointer when the given popup is the live one.
-	 * Does not change status meta (the caller owns that).
-	 *
-	 * @param int $post_id Popup ID.
-	 * @return void
-	 */
-	public static function clear_active( $post_id ) {
-		if ( self::get_active_id() === (int) $post_id ) {
-			delete_option( BLT_POPUPS_ACTIVE_OPTION );
-		}
-	}
-
-	/**
-	 * On trash/delete of the live popup, drop the pointer so nothing tries to
-	 * serve a missing post.
-	 *
-	 * @param int $post_id Post being removed.
-	 * @return void
-	 */
-	public static function maybe_clear_on_removal( $post_id ) {
-		if ( get_post_type( $post_id ) !== BLT_POPUPS_CPT ) {
-			return;
-		}
-		self::clear_active( (int) $post_id );
 	}
 
 	/* --------------------------------------------------------------------- *
@@ -157,15 +178,7 @@ class BLT_Popups_Admin {
 	public static function render_column( $column, $post_id ) {
 		switch ( $column ) {
 			case 'blt_status':
-				$status    = BLT_Popups_CPT::get( $post_id, 'status' );
-				$is_active = ( self::get_active_id() === (int) $post_id ) && ( BLT_Popups_CPT::STATUS_ACTIVE === $status );
-				$label     = $is_active ? __( 'Active', 'blt-popups' ) : ucfirst( (string) $status );
-				$class     = $is_active ? 'active' : $status;
-				printf(
-					'<span class="blt-popup-badge blt-popup-badge-%s">%s</span>',
-					esc_attr( $class ),
-					esc_html( $label )
-				);
+				self::render_status_toggle( $post_id );
 				break;
 
 			case 'blt_schedule':
@@ -184,6 +197,50 @@ class BLT_Popups_Admin {
 				echo (int) BLT_Popups_CPT::get( $post_id, 'clicks' );
 				break;
 		}
+	}
+
+	/**
+	 * Render the quick-toggle switch + status badge for a list-table row.
+	 *
+	 * The switch is a thin, AJAX-driven front for native post_status: flipping
+	 * it on publishes the popup (making it live and demoting any other live
+	 * popup); flipping it off drafts it. Making a popup live is admin-only
+	 * (matching the preview bypass), so the switch is disabled for a draft
+	 * popup when the current user can't publish it — but a live popup can
+	 * always be switched off by anyone who can edit it.
+	 *
+	 * @param int $post_id Popup ID.
+	 * @return void
+	 */
+	public static function render_status_toggle( $post_id ) {
+		$post = get_post( $post_id );
+		if ( ! $post ) {
+			return;
+		}
+
+		$is_live  = ( 'publish' === $post->post_status );
+		$label    = $is_live ? __( 'Live', 'blt-popups' ) : __( 'Draft', 'blt-popups' );
+		$class    = $is_live ? 'active' : 'draft';
+		// Trashed/pending/etc. rows get a disabled toggle — the switch is only
+		// for the ordinary publish/draft flip, not for reviving a trashed post.
+		$disabled = ! current_user_can( 'edit_post', $post_id )
+			|| ( ! $is_live && ! current_user_can( 'manage_options' ) )
+			|| ( ! in_array( $post->post_status, array( 'publish', 'draft', 'pending' ), true ) );
+		?>
+		<div class="blt-popup-status-cell" data-post-id="<?php echo (int) $post_id; ?>">
+			<label class="blt-popup-switch blt-popup-list-toggle">
+				<input
+					type="checkbox"
+					class="blt-popup-toggle-input"
+					<?php checked( $is_live ); ?>
+					<?php disabled( $disabled ); ?>
+				/>
+				<span class="blt-popup-switch-track" aria-hidden="true"></span>
+				<span class="screen-reader-text"><?php esc_html_e( 'Make this popup live', 'blt-popups' ); ?></span>
+			</label>
+			<span class="blt-popup-badge blt-popup-badge-<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $label ); ?></span>
+		</div>
+		<?php
 	}
 
 	/**
@@ -278,9 +335,10 @@ class BLT_Popups_Admin {
 
 	/**
 	 * Duplicate a popup into a new draft carrying every schema field except
-	 * status/impressions/clicks — a copy is never live and starts its
-	 * analytics at zero, same as any freshly created popup (both simply fall
-	 * back to their schema defaults by not being written below).
+	 * impressions/clicks — a copy is never live (post_status is forced to
+	 * 'draft' below) and starts its analytics at zero, same as any freshly
+	 * created popup (both simply fall back to their schema defaults by not
+	 * being written below).
 	 *
 	 * @return void
 	 */
@@ -315,7 +373,7 @@ class BLT_Popups_Admin {
 			wp_die( $new_id ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- wp_die() escapes WP_Error internally.
 		}
 
-		$skip = array( 'status', 'impressions', 'clicks' );
+		$skip = array( 'impressions', 'clicks' );
 		foreach ( BLT_Popups_CPT::fields() as $field => $schema ) {
 			if ( in_array( $field, $skip, true ) ) {
 				continue;
@@ -419,10 +477,9 @@ class BLT_Popups_Admin {
 	 */
 	public static function render_summary_box( $post ) {
 		$post_id   = (int) $post->ID;
-		$status    = BLT_Popups_CPT::get( $post_id, 'status' );
-		$is_active = ( self::get_active_id() === $post_id ) && ( BLT_Popups_CPT::STATUS_ACTIVE === $status );
-		$label     = $is_active ? __( 'Active', 'blt-popups' ) : ucfirst( (string) $status );
-		$class     = $is_active ? 'active' : $status;
+		$is_active = ( 'publish' === $post->post_status );
+		$label     = $is_active ? __( 'Live', 'blt-popups' ) : __( 'Draft', 'blt-popups' );
+		$class     = $is_active ? 'active' : 'draft';
 		$is_saved  = ( $post_id && 'auto-draft' !== $post->post_status );
 		?>
 		<ul class="blt-popup-summary-list">
@@ -486,10 +543,9 @@ class BLT_Popups_Admin {
 			return;
 		}
 
-		$status    = BLT_Popups_CPT::get( $post_id, 'status' );
-		$is_active = ( self::get_active_id() === $post_id ) && ( BLT_Popups_CPT::STATUS_ACTIVE === $status );
-		$label     = $is_active ? __( 'Active', 'blt-popups' ) : ucfirst( (string) $status );
-		$class     = $is_active ? 'active' : $status;
+		$is_active = ( 'publish' === $post->post_status );
+		$label     = $is_active ? __( 'Live', 'blt-popups' ) : __( 'Draft', 'blt-popups' );
+		$class     = $is_active ? 'active' : 'draft';
 		?>
 		<div class="blt-popup-title-strip">
 			<span class="blt-popup-badge blt-popup-badge-<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $label ); ?></span>
@@ -535,28 +591,49 @@ class BLT_Popups_Admin {
 		} else {
 			printf(
 				'<div class="notice notice-warning"><p>%s</p></div>',
-				esc_html__( 'No popup is currently live. Activate one from its editor to show it on the site.', 'blt-popups' )
+				esc_html__( 'No popup is currently live. Toggle one on from the list below, or publish it from its editor.', 'blt-popups' )
 			);
 		}
 	}
 
 	/**
-	 * Enqueue editor assets (media picker, admin UI, and the front-end CSS so
-	 * the in-admin preview matches the live rendering).
+	 * A small note in the native Publish box explaining the admin-only
+	 * restriction, for anyone who can edit a popup but can't make it live.
+	 *
+	 * @return void
+	 */
+	public static function publish_box_note() {
+		$screen = get_current_screen();
+		if ( ! $screen || BLT_POPUPS_CPT !== $screen->post_type ) {
+			return;
+		}
+		if ( current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		printf(
+			'<div class="misc-pub-section blt-popup-publish-note">%s</div>',
+			esc_html__( 'Only an administrator can make a popup live. You can still save your changes as a draft.', 'blt-popups' )
+		);
+	}
+
+	/**
+	 * Enqueue admin assets: the media picker/editor script on the editor
+	 * screens, and the lighter list-table toggle script (+ its nonce) on the
+	 * list screen. Both screens share the same CSS.
 	 *
 	 * @param string $hook Current admin page hook.
 	 * @return void
 	 */
 	public static function enqueue( $hook ) {
-		if ( 'post.php' !== $hook && 'post-new.php' !== $hook ) {
+		$is_editor = in_array( $hook, array( 'post.php', 'post-new.php' ), true );
+		$is_list   = ( 'edit.php' === $hook );
+		if ( ! $is_editor && ! $is_list ) {
 			return;
 		}
 		$screen = get_current_screen();
 		if ( ! $screen || BLT_POPUPS_CPT !== $screen->post_type ) {
 			return;
 		}
-
-		wp_enqueue_media();
 
 		wp_enqueue_style(
 			'blt-popups-frontend',
@@ -572,6 +649,10 @@ class BLT_Popups_Admin {
 			BLT_POPUPS_VERSION
 		);
 
+		if ( $is_editor ) {
+			wp_enqueue_media();
+		}
+
 		wp_enqueue_script(
 			'blt-popups-admin',
 			BLT_POPUPS_URL . 'assets/js/blt-popups-admin.js',
@@ -585,19 +666,25 @@ class BLT_Popups_Admin {
 			'blt-popups-admin',
 			'bltPopupsAdmin',
 			array(
-				'mediaTitle'    => __( 'Select popup image', 'blt-popups' ),
-				'mediaButton'   => __( 'Use this image', 'blt-popups' ),
-				'activeId'      => $active_id,
-				'activeTitle'   => $active_id ? get_the_title( $active_id ) : '',
-				'currentId'     => (int) get_the_ID(),
-				'popupListUrl'  => esc_url_raw( admin_url( 'edit.php?post_type=' . BLT_POPUPS_CPT ) ),
+				'mediaTitle'        => __( 'Select popup image', 'blt-popups' ),
+				'mediaButton'       => __( 'Use this image', 'blt-popups' ),
+				'activeId'          => $active_id,
+				'activeTitle'       => $active_id ? get_the_title( $active_id ) : '',
+				'currentId'         => (int) get_the_ID(),
+				'currentPostStatus' => $is_editor && get_post() ? get_post()->post_status : '',
+				'popupListUrl'      => esc_url_raw( admin_url( 'edit.php?post_type=' . BLT_POPUPS_CPT ) ),
+				'ajaxUrl'           => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
+				'toggleNonce'       => wp_create_nonce( self::TOGGLE_NONCE_ACTION ),
 				// Core's own content-search endpoint (the same one the block
 				// editor's link inserter uses) — no custom REST route needed.
-				'restSearchUrl' => esc_url_raw( rest_url( 'wp/v2/search' ) ),
-				'restNonce'     => wp_create_nonce( 'wp_rest' ),
-				'i18n'          => array(
+				'restSearchUrl'     => esc_url_raw( rest_url( 'wp/v2/search' ) ),
+				'restNonce'         => wp_create_nonce( 'wp_rest' ),
+				'i18n'              => array(
 					'confirmReplace'  => __( 'This will deactivate the currently live popup "%s". Continue?', 'blt-popups' ),
 					'confirmActivate' => __( 'Make this popup live on the site now?', 'blt-popups' ),
+					'toggleError'     => __( 'Could not update this popup. Please try again.', 'blt-popups' ),
+					'live'            => __( 'Live', 'blt-popups' ),
+					'draft'           => __( 'Draft', 'blt-popups' ),
 					'ctaFallback'     => __( 'Learn more', 'blt-popups' ),
 					'noResults'       => __( 'No matching pages found.', 'blt-popups' ),
 					'searching'       => __( 'Searching…', 'blt-popups' ),
@@ -608,5 +695,139 @@ class BLT_Popups_Admin {
 				),
 			)
 		);
+	}
+
+	/* --------------------------------------------------------------------- *
+	 * Publish capability guard.
+	 * --------------------------------------------------------------------- */
+
+	/**
+	 * Making a popup live is a site-wide, visitor-facing action, so it is
+	 * restricted to administrators — enforced here at save time regardless of
+	 * which UI path attempted the publish (editor, Quick Edit, Bulk Edit, or
+	 * our own AJAX toggle, which also checks this before ever calling
+	 * wp_update_post()).
+	 *
+	 * A non-admin editing a popup that is already live keeps it live (this
+	 * filter only blocks newly *making* one live); it just can't flip a
+	 * draft/inactive popup to publish.
+	 *
+	 * @param array $data    Slashed post data about to be saved.
+	 * @param array $postarr Raw $_POST-derived post array (has the ID, if any).
+	 * @return array
+	 */
+	public static function guard_publish_capability( $data, $postarr ) {
+		if ( BLT_POPUPS_CPT !== $data['post_type'] || 'publish' !== $data['post_status'] ) {
+			return $data;
+		}
+		if ( current_user_can( 'manage_options' ) ) {
+			return $data;
+		}
+
+		$post_id = isset( $postarr['ID'] ) ? (int) $postarr['ID'] : 0;
+		if ( $post_id && 'publish' === get_post_status( $post_id ) ) {
+			return $data;
+		}
+
+		$data['post_status'] = 'draft';
+		return $data;
+	}
+
+	/* --------------------------------------------------------------------- *
+	 * List-table quick toggle (AJAX).
+	 * --------------------------------------------------------------------- */
+
+	/**
+	 * Handle the list-table toggle switch: publish (go live) or draft
+	 * (go inactive) a popup, then report the resulting live popup back so the
+	 * browser can update every affected row without a page reload.
+	 *
+	 * @return void
+	 */
+	public static function ajax_toggle_status() {
+		check_ajax_referer( self::TOGGLE_NONCE_ACTION, 'nonce' );
+
+		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+		if ( ! $post_id || BLT_POPUPS_CPT !== get_post_type( $post_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid popup.', 'blt-popups' ) ), 400 );
+		}
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'You are not allowed to edit this popup.', 'blt-popups' ) ), 403 );
+		}
+
+		$activate = ! empty( $_POST['activate'] );
+
+		if ( $activate && ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Only an administrator can make a popup live.', 'blt-popups' ) ), 403 );
+		}
+
+		$result = wp_update_post(
+			array(
+				'ID'          => $post_id,
+				'post_status' => $activate ? 'publish' : 'draft',
+			),
+			true
+		);
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		$active_id = self::get_active_id();
+		wp_send_json_success(
+			array(
+				'postId'      => $post_id,
+				'isLive'      => ( 'publish' === get_post_status( $post_id ) ),
+				'activeId'    => $active_id,
+				'activeTitle' => $active_id ? get_the_title( $active_id ) : '',
+			)
+		);
+	}
+
+	/* --------------------------------------------------------------------- *
+	 * One-time migration from the old custom "status" meta field.
+	 * --------------------------------------------------------------------- */
+
+	/**
+	 * Sites upgrading from a version where "live" was tracked in a custom
+	 * `_blt_popup_status` meta field (values: draft/inactive/active) instead
+	 * of native post_status. Runs once: carries the previously-active popup's
+	 * liveness over to post_status = 'publish', drafts everything else
+	 * (including any popup that happened to already be a native "Published"
+	 * post without ever having been the plugin's active one — under the old
+	 * model that flag meant nothing, so it must not suddenly go live now),
+	 * and removes the legacy meta.
+	 *
+	 * @return void
+	 */
+	public static function maybe_migrate_legacy_status() {
+		if ( get_option( self::MIGRATED_OPTION ) ) {
+			return;
+		}
+
+		$ids = get_posts(
+			array(
+				'post_type'      => BLT_POPUPS_CPT,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+			)
+		);
+
+		$legacy_key = BLT_Popups_CPT::meta_key( 'status' );
+		foreach ( $ids as $id ) {
+			$legacy_status = get_post_meta( $id, $legacy_key, true );
+			$post_status   = get_post_status( $id );
+
+			if ( 'active' === $legacy_status && 'publish' !== $post_status ) {
+				wp_update_post( array( 'ID' => $id, 'post_status' => 'publish' ) );
+			} elseif ( 'active' !== $legacy_status && 'publish' === $post_status ) {
+				wp_update_post( array( 'ID' => $id, 'post_status' => 'draft' ) );
+			}
+
+			delete_post_meta( $id, $legacy_key );
+		}
+
+		update_option( self::MIGRATED_OPTION, 1 );
 	}
 }

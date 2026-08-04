@@ -17,13 +17,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 class BLT_Popups_CPT {
 
 	/**
-	 * Status values for a popup (plugin-level, stored in the status meta).
-	 */
-	const STATUS_DRAFT    = 'draft';
-	const STATUS_INACTIVE = 'inactive';
-	const STATUS_ACTIVE   = 'active';
-
-	/**
 	 * Hook registration.
 	 *
 	 * @return void
@@ -187,11 +180,8 @@ class BLT_Popups_CPT {
 				'min'     => 1,
 				'max'     => 365,
 			),
-			'status'          => array(
-				'type'    => 'enum',
-				'default' => self::STATUS_DRAFT,
-				'values'  => array( self::STATUS_DRAFT, self::STATUS_INACTIVE, self::STATUS_ACTIVE ),
-			),
+			// Whether a popup is active/live is native WordPress publish/draft
+			// status (see BLT_Popups_Admin), not a schema field here.
 			// Lightweight analytics (§11).
 			'impressions'     => array(
 				'type'    => 'int',

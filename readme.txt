@@ -36,7 +36,7 @@ The plugin never bakes volatile eligibility into cached HTML. Page targeting (st
 
 1. Upload the `blt-popups` folder to `/wp-content/plugins/`, or install the zip from **Plugins → Add New → Upload Plugin**.
 2. Activate the plugin.
-3. Go to **BLT Popups → Add New**, configure the image, destination, schedule, targeting, and frequency, then click **Activate**.
+3. Go to **BLT Popups → Add New**, configure the image, destination, schedule, targeting, and frequency, then click **Publish** to make it live. You can also flip the toggle on any popup right from the **All Popups** list.
 
 Updates are delivered automatically from the plugin's GitHub releases via the bundled update checker.
 
@@ -44,7 +44,7 @@ Updates are delivered automatically from the plugin's GitHub releases via the bu
 
 = How many popups can be live at once? =
 
-One. Activating a popup automatically deactivates any other active popup. You can save unlimited drafts/inactive popups for reuse.
+One. A popup is live exactly when it's Published; publishing one (via its editor or the toggle on the list table) automatically drafts any other live popup. You can save unlimited drafts for reuse.
 
 = Will it work behind Cloudflare or a page cache? =
 
@@ -61,6 +61,7 @@ No. The front end is dependency-free vanilla JavaScript and loads only when a po
 * Choice of entrance animation: None, Fade, Slide In, or Zoom In.
 * Duplicate any popup into a new draft from the list table or its editor.
 * Modernized the popup editor: a sticky header, numbered/collapsible settings sections, toggle switches, and sidebar panels for an always-on Live Preview (Desktop/Tablet/Mobile) and a Popup Summary recap.
+* Activate/deactivate popups with a quick toggle switch right on the list table — no need to open the editor. This now runs on WordPress's own Publish/Draft status, so "live" always means Published (only an administrator can publish, and publishing one popup automatically drafts any other live popup).
 
 = 1.0.0 =
 * Initial release: scheduled/targeted image popups, single-active enforcement, cache-safe REST delivery, in-admin and front-end preview, frequency capping, and impression/click counters.
