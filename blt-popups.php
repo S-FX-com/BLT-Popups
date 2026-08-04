@@ -3,7 +3,7 @@
  * Plugin Name:       BLT Popups
  * Plugin URI:        https://s-fx.com/plugins/blt-popups/
  * Description:       Lightweight, single-purpose image popups — scheduled, targeted, and cache-safe. One active popup site-wide, unlimited saved. No page-builder or lightbox-library dependencies.
- * Version:           1.0.5
+ * Version:           1.0.6
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            S-FX.com Small Business Solutions
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // ---------- Constants ----------
-define( 'BLT_POPUPS_VERSION', '1.0.5' );
+define( 'BLT_POPUPS_VERSION', '1.0.6' );
 define( 'BLT_POPUPS_FILE', __FILE__ );
 define( 'BLT_POPUPS_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BLT_POPUPS_URL', plugin_dir_url( __FILE__ ) );
