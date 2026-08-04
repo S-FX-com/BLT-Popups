@@ -132,12 +132,19 @@
 		}
 
 		var cta = $( '#blt_popup_cta_enabled' );
-		var ctaText = $( '.blt-popup-cta-text' );
-		if ( cta && ctaText ) {
+		var ctaFields = $all( '.blt-popup-cta-conditional' );
+		var ctaStyleRadios = $all( 'input[name="blt_popup_cta_style"]' );
+		if ( cta && ctaFields.length ) {
 			var applyCta = function () {
-				ctaText.style.display = cta.checked ? '' : 'none';
+				var checkedStyle = ctaStyleRadios.filter( function ( r ) { return r.checked; } )[ 0 ];
+				var style = checkedStyle ? checkedStyle.value : 'automatic';
+				ctaFields.forEach( function ( el ) {
+					var wantsStyle = el.getAttribute( 'data-cta-style' );
+					el.style.display = ( cta.checked && ( ! wantsStyle || wantsStyle === style ) ) ? '' : 'none';
+				} );
 			};
 			cta.addEventListener( 'change', applyCta );
+			ctaStyleRadios.forEach( function ( r ) { r.addEventListener( 'change', applyCta ); } );
 			applyCta();
 		}
 
@@ -337,6 +344,9 @@
 			imageSrc: img ? img.getAttribute( 'src' ) : '',
 			ctaEnabled: !! ( $( '#blt_popup_cta_enabled' ) || {} ).checked,
 			ctaText: ( $( '#blt_popup_cta_text' ) || {} ).value || '',
+			ctaStyle: ( $( 'input[name="blt_popup_cta_style"]:checked' ) || {} ).value || 'automatic',
+			ctaBgColor: ( $( '#blt_popup_cta_bg_color' ) || {} ).value || '#111111',
+			ctaTextColor: ( $( '#blt_popup_cta_text_color' ) || {} ).value || '#ffffff',
 			maxWidthPct: parseInt( ( $( '#blt_popup_max_width_pct' ) || {} ).value, 10 ) || 70,
 			maxHeightPct: parseInt( ( $( '#blt_popup_max_height_pct' ) || {} ).value, 10 ) || 80,
 			overlayColor: ( $( '#blt_popup_overlay_color' ) || {} ).value || '#000000',
@@ -384,6 +394,14 @@
 			var cta = document.createElement( 'span' );
 			cta.className = 'blt-popup-cta';
 			cta.textContent = v.ctaText || i18n.ctaFallback || 'Learn more';
+			// "Automatic" relies on theme CSS (.btn--primary/.btn--secondary)
+			// this sidebar mockup never loads, so it's left showing the same
+			// default look as before; only "Custom color" has anything this
+			// preview can accurately show.
+			if ( 'custom' === v.ctaStyle ) {
+				cta.style.backgroundColor = v.ctaBgColor;
+				cta.style.color = v.ctaTextColor;
+			}
 			modal.appendChild( cta );
 		}
 
