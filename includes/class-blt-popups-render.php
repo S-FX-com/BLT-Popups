@@ -66,7 +66,7 @@ class BLT_Popups_Render {
 		if ( ! $active_id ) {
 			return;
 		}
-		if ( BLT_Popups_CPT::get( $active_id, 'status' ) !== BLT_Popups_CPT::STATUS_ACTIVE ) {
+		if ( 'publish' !== get_post_status( $active_id ) ) {
 			return;
 		}
 		// Cache-safe coarse gate: page targeting only (stable per-URL).

@@ -27,7 +27,6 @@ define( 'BLT_POPUPS_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BLT_POPUPS_URL', plugin_dir_url( __FILE__ ) );
 define( 'BLT_POPUPS_CPT', 'blt_popup' );
 define( 'BLT_POPUPS_META_PREFIX', '_blt_popup_' );
-define( 'BLT_POPUPS_ACTIVE_OPTION', 'blt_popups_active_id' );
 define( 'BLT_POPUPS_REST_NS', 'blt-popups/v1' );
 
 // ---------- Update checker ----------

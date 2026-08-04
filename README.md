@@ -7,7 +7,7 @@ Part of the **BLT** family of plugins by S-FX.com Small Business Solutions.
 ## Features
 
 - Single custom post type (`blt_popup`); each popup is a reusable post.
-- Only one popup live at a time — activating one deactivates any other.
+- Only one popup live at a time — a quick toggle switch on the popup list (backed by WordPress's native Publish/Draft status) activates one and deactivates any other.
 - Modal lightbox with configurable overlay dimming (color + opacity).
 - Close via the "×", click-outside, or the Esc key; focus-trapped for keyboard users.
 - Scheduling by date range and daily time window (site timezone).
@@ -23,7 +23,7 @@ Part of the **BLT** family of plugins by S-FX.com Small Business Solutions.
 
 1. Install the zip from **Plugins → Add New → Upload Plugin**, or copy the `blt-popups` folder to `wp-content/plugins/`.
 2. Activate the plugin.
-3. Go to **BLT Popups → Add New**, configure the image, destination, schedule, targeting, and frequency, then click **Activate**.
+3. Go to **BLT Popups → Add New**, configure the image, destination, schedule, targeting, and frequency, then click **Publish** to make it live — or flip the toggle on any saved popup from the **All Popups** list.
 
 ## Automatic updates
 

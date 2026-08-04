@@ -434,23 +434,6 @@ html.wp-toolbar {
 	display: none;
 }
 
-.blt-popup-actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	align-items: center;
-	margin: 12px 0 6px;
-}
-
-.blt-popup-live-note {
-	display: inline-block;
-	padding: 4px 10px;
-	border-radius: 4px;
-	background: #edfaef;
-	color: #0a5d1e;
-	font-weight: 600;
-}
-
 /* ---- Sidebar: Live Preview box ---- */
 .blt-popup-device-tabs {
 	display: flex;
@@ -623,11 +606,6 @@ html.wp-toolbar {
 	color: #ffffff;
 }
 
-.blt-popup-badge-inactive {
-	background: #dba617;
-	color: #1d2327;
-}
-
 .blt-popup-badge-draft {
 	background: #dcdcde;
 	color: #50575e;
@@ -635,4 +613,30 @@ html.wp-toolbar {
 
 .blt-popup-live-notice .blt-popup-badge {
 	margin-right: 6px;
+}
+
+/* ---- List-table quick toggle ---- */
+.blt-popup-status-cell {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.blt-popup-list-toggle .blt-popup-switch-track {
+	width: 32px;
+	height: 18px;
+}
+
+.blt-popup-list-toggle .blt-popup-switch-track::before {
+	width: 14px;
+	height: 14px;
+}
+
+.blt-popup-list-toggle input:checked + .blt-popup-switch-track::before {
+	transform: translateX( 14px );
+}
+
+.blt-popup-list-toggle input:disabled + .blt-popup-switch-track {
+	opacity: 0.5;
+	cursor: not-allowed;
 }
