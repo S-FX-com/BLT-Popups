@@ -4,7 +4,7 @@ Tags: popup, lightbox, modal, promotion, scheduling
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.0.6
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -57,6 +57,9 @@ No. The front end is dependency-free vanilla JavaScript and loads only when a po
 == Changelog ==
 
 = 1.1.0 =
+* Joined the shared BLT settings layer: a site running two or more BLT plugins can enter a connection once (here, only the optional GitHub update token) instead of once per plugin. Nothing is shared until the site owner enables it on the BLT screen, so an existing site is unaffected.
+* The admin menu now carries the BLT mark, and the popup list and editor screens have moved onto the shared BLT admin design system.
+* Update checks now run at most once a day, anchored to midnight site time; a "Check for Updates" action on the popup list screen runs one immediately.
 * Destination can now be Internal (search-and-select a page, with predictive suggestions as you type) or External (a URL that always opens in a new tab/window).
 * Choice of entrance animation: None, Fade, Slide In, or Zoom In.
 * Duplicate any popup into a new draft from the list table or its editor.

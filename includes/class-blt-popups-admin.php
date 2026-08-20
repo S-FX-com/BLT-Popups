@@ -21,6 +21,19 @@ class BLT_Popups_Admin {
 	const MIGRATED_OPTION     = 'blt_popups_status_migrated';
 
 	/**
+	 * Meta boxes this plugin owns, tagged as design-system cards.
+	 *
+	 * The two side boxes are registered by {@see add_side_meta_boxes()}; the
+	 * settings box by BLT_Popups_Meta. All three are ours, so all three get
+	 * the card chrome — other plugins' boxes on this screen are left alone.
+	 */
+	const CARD_META_BOXES = array(
+		'blt_popup_settings',
+		'blt_popup_live_preview',
+		'blt_popup_summary',
+	);
+
+	/**
 	 * Hook registration (admin only).
 	 *
 	 * @return void
@@ -31,7 +44,14 @@ class BLT_Popups_Admin {
 		add_action( 'admin_notices', array( __CLASS__, 'live_badge' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'duplicate_notice' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
+		add_action( 'admin_head', array( __CLASS__, 'print_menu_icon_style' ) );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_side_meta_boxes' ) );
+
+		// Turn this plugin's own meta boxes into design-system cards.
+		foreach ( self::CARD_META_BOXES as $box ) {
+			add_filter( 'postbox_classes_' . BLT_POPUPS_CPT . '_' . $box, array( __CLASS__, 'add_postbox_class' ) );
+		}
+
 		add_action( 'edit_form_after_title', array( __CLASS__, 'after_title_strip' ) );
 		add_action( 'post_submitbox_misc_actions', array( __CLASS__, 'publish_box_note' ) );
 
@@ -54,6 +74,37 @@ class BLT_Popups_Admin {
 		// One-time migration from the old custom "status" meta field to
 		// native post_status, for sites upgrading from an earlier version.
 		add_action( 'admin_init', array( __CLASS__, 'maybe_migrate_legacy_status' ) );
+	}
+
+	/**
+	 * Tag one of this plugin's meta boxes so the editor stylesheet can give it
+	 * the shared card chrome without touching other plugins' boxes.
+	 *
+	 * @param array $classes Existing postbox classes.
+	 * @return array
+	 */
+	public static function add_postbox_class( $classes ) {
+		$classes[] = 'blt-card';
+		return $classes;
+	}
+
+	/**
+	 * Light the BLT mark up on hover and while the popup section is open, the
+	 * way core does for a dashicon menu item.
+	 *
+	 * This plugin's top-level menu is the CPT's own, so WordPress builds its id
+	 * as `menu-posts-<post_type>` rather than the `toplevel_page_<slug>` that
+	 * add_menu_page() produces — hence the _for_id() variant of the shared
+	 * helper rather than print_menu_icon_style().
+	 *
+	 * @return void
+	 */
+	public static function print_menu_icon_style() {
+		if ( ! class_exists( 'BLT_Family_Brand' ) ) {
+			return;
+		}
+
+		BLT_Family_Brand::print_menu_icon_style_for_id( 'menu-posts-' . BLT_POPUPS_CPT );
 	}
 
 	/**
@@ -238,7 +289,7 @@ class BLT_Popups_Admin {
 				<span class="blt-popup-switch-track" aria-hidden="true"></span>
 				<span class="screen-reader-text"><?php esc_html_e( 'Make this popup live', 'blt-popups' ); ?></span>
 			</label>
-			<span class="blt-popup-badge blt-popup-badge-<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $label ); ?></span>
+			<span class="blt-badge blt-popup-badge blt-popup-badge-<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $label ); ?></span>
 		</div>
 		<?php
 	}
@@ -485,7 +536,7 @@ class BLT_Popups_Admin {
 		<ul class="blt-popup-summary-list">
 			<li>
 				<span class="blt-popup-summary-label"><?php esc_html_e( 'Status', 'blt-popups' ); ?></span>
-				<span class="blt-popup-badge blt-popup-badge-<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $label ); ?></span>
+				<span class="blt-badge blt-popup-badge blt-popup-badge-<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $label ); ?></span>
 			</li>
 			<li>
 				<span class="blt-popup-summary-label"><?php esc_html_e( 'Schedule', 'blt-popups' ); ?></span>
@@ -548,7 +599,7 @@ class BLT_Popups_Admin {
 		$class     = $is_active ? 'active' : 'draft';
 		?>
 		<div class="blt-popup-title-strip">
-			<span class="blt-popup-badge blt-popup-badge-<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $label ); ?></span>
+			<span class="blt-badge blt-popup-badge blt-popup-badge-<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $label ); ?></span>
 			<span class="blt-popup-title-strip-modified">
 				<?php
 				printf(
@@ -567,7 +618,18 @@ class BLT_Popups_Admin {
 	 * --------------------------------------------------------------------- */
 
 	/**
-	 * Persistent notice on the popup list screen naming the live popup.
+	 * The status panel at the top of the popup list screen: which popup is
+	 * live, and the plugin's own "Check for Updates" action.
+	 *
+	 * Rendered as a design-system card inside a `.blt-ui` shell — the popup
+	 * list is this plugin's main admin screen, so this is where the family's
+	 * page-header pattern and the manual update action live.
+	 *
+	 * Why it carries the `notice` class: `admin_notices` fires from
+	 * admin-header.php, above the screen's own `.wrap`, and core's common.js
+	 * relocates only `div.notice`/`div.updated`/`div.error` below the page
+	 * title. The class is the transport; blt-popups-admin.css strips the
+	 * notice chrome back off so the card supplies the frame once.
 	 *
 	 * @return void
 	 */
@@ -577,23 +639,85 @@ class BLT_Popups_Admin {
 			return;
 		}
 
-		$active_id = self::get_active_id();
-		if ( $active_id && get_post_status( $active_id ) ) {
-			$title = get_the_title( $active_id );
-			$link  = get_edit_post_link( $active_id );
-			printf(
-				'<div class="notice notice-info blt-popup-live-notice"><p><span class="blt-popup-badge blt-popup-badge-active">%s</span> %s <a href="%s"><strong>%s</strong></a></p></div>',
-				esc_html__( 'Live', 'blt-popups' ),
-				esc_html__( 'Currently active popup:', 'blt-popups' ),
-				esc_url( (string) $link ),
-				esc_html( $title )
-			);
-		} else {
-			printf(
-				'<div class="notice notice-warning"><p>%s</p></div>',
-				esc_html__( 'No popup is currently live. Toggle one on from the list below, or publish it from its editor.', 'blt-popups' )
-			);
+		$active_id  = self::get_active_id();
+		$is_live    = ( $active_id && get_post_status( $active_id ) );
+		$badge_text = $is_live ? __( 'Live', 'blt-popups' ) : __( 'None live', 'blt-popups' );
+		$badge_mod  = $is_live ? 'active' : 'draft';
+		?>
+		<div class="notice blt-popups-panel">
+			<div class="blt-ui blt-ui-wide blt-popups-list-panel">
+				<div class="blt-card">
+					<div class="blt-card-header">
+						<h2>
+							<?php
+							// Pre-built, KSES-filtered SVG markup from the shared brand class.
+							if ( class_exists( 'BLT_Family_Brand' ) ) {
+								echo BLT_Family_Brand::inline_mark( BLT_POPUPS_DIR ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Sanitized in inline_mark().
+							}
+							?>
+							<?php esc_html_e( 'BLT Popups', 'blt-popups' ); ?>
+						</h2>
+						<p><?php esc_html_e( 'One popup is live site-wide at a time. Publishing a popup makes it the live one and drafts any other.', 'blt-popups' ); ?></p>
+						<div class="blt-card-header-badges">
+							<span class="blt-badge blt-popup-badge blt-popup-badge-<?php echo esc_attr( $badge_mod ); ?>"><?php echo esc_html( $badge_text ); ?></span>
+						</div>
+					</div>
+					<div class="blt-card-body">
+						<div class="blt-popups-panel-row">
+							<span class="blt-popups-panel-status">
+								<?php if ( $is_live ) : ?>
+									<?php esc_html_e( 'Currently active popup:', 'blt-popups' ); ?>
+									<a href="<?php echo esc_url( (string) get_edit_post_link( $active_id ) ); ?>"><strong><?php echo esc_html( get_the_title( $active_id ) ); ?></strong></a>
+								<?php else : ?>
+									<?php esc_html_e( 'No popup is currently live. Toggle one on from the list below, or publish it from its editor.', 'blt-popups' ); ?>
+								<?php endif; ?>
+							</span>
+							<?php self::render_update_action(); ?>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * The "Check for Updates" action for the list-screen panel.
+	 *
+	 * BLT Popups updates from its own GitHub releases. Under the shared family
+	 * policy the automatic check runs once a day, anchored to 00:00 site time;
+	 * this link is the manual path and runs immediately, bypassing that floor.
+	 * plugin-update-checker's own handler verifies the nonce and the user's
+	 * capability, then redirects to the Plugins screen with the result notice.
+	 *
+	 * @return void
+	 */
+	private static function render_update_action() {
+		if ( ! class_exists( 'BLT_Family_Updates' ) || ! current_user_can( 'update_plugins' ) ) {
+			return;
 		}
+
+		// The checker instance is the global the main plugin file builds.
+		$checker    = isset( $GLOBALS['blt_popups_update_checker'] ) ? $GLOBALS['blt_popups_update_checker'] : null;
+		$last_check = $checker ? BLT_Family_Updates::last_check_time( $checker ) : 0;
+		?>
+		<div class="blt-admin-page-actions">
+			<?php if ( $last_check > 0 ) : ?>
+				<span class="blt-admin-page-header-meta">
+					<?php
+					printf(
+						/* translators: %s: human-readable time difference, e.g. "3 hours". */
+						esc_html__( 'Last checked %s ago', 'blt-popups' ),
+						esc_html( human_time_diff( $last_check ) )
+					);
+					?>
+				</span>
+			<?php endif; ?>
+			<a class="button" href="<?php echo esc_url( BLT_Family_Updates::check_now_url( 'blt-popups' ) ); ?>">
+				<?php esc_html_e( 'Check for Updates', 'blt-popups' ); ?>
+			</a>
+		</div>
+		<?php
 	}
 
 	/**
@@ -642,10 +766,21 @@ class BLT_Popups_Admin {
 			BLT_POPUPS_VERSION
 		);
 
+		// The shared BLT design system: this plugin's own admin screens only,
+		// never unconditionally and never on the front end. It supplies the
+		// colour tokens and the unscoped components (badges) the popup list
+		// and editor use, so blt-popups-admin.css depends on it.
+		wp_enqueue_style(
+			'blt-popups-design-system',
+			BLT_POPUPS_URL . 'assets/css/blt-design-system.css',
+			array(),
+			BLT_POPUPS_VERSION
+		);
+
 		wp_enqueue_style(
 			'blt-popups-admin',
 			BLT_POPUPS_URL . 'assets/css/blt-popups-admin.css',
-			array( 'blt-popups-frontend' ),
+			array( 'blt-popups-frontend', 'blt-popups-design-system' ),
 			BLT_POPUPS_VERSION
 		);
 

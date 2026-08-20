@@ -3,11 +3,11 @@
  * Plugin Name:       BLT Popups
  * Plugin URI:        https://s-fx.com/plugins/blt-popups/
  * Description:       Lightweight, single-purpose image popups — scheduled, targeted, and cache-safe. One active popup site-wide, unlimited saved. No page-builder or lightbox-library dependencies.
- * Version:           1.0.6
+ * Version:           1.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
- * Author:            S-FX.com Small Business Solutions
- * Author URI:        https://s-fx.com/
+ * Author:            S-FX.com
+ * Author URI:        https://www.s-fx.com
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       blt-popups
@@ -21,13 +21,39 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // ---------- Constants ----------
-define( 'BLT_POPUPS_VERSION', '1.0.6' );
+define( 'BLT_POPUPS_VERSION', '1.1.0' );
 define( 'BLT_POPUPS_FILE', __FILE__ );
 define( 'BLT_POPUPS_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BLT_POPUPS_URL', plugin_dir_url( __FILE__ ) );
 define( 'BLT_POPUPS_CPT', 'blt_popup' );
 define( 'BLT_POPUPS_META_PREFIX', '_blt_popup_' );
 define( 'BLT_POPUPS_REST_NS', 'blt-popups/v1' );
+
+// ---------- BLT family layer ----------
+// Shared, encrypted connection settings for a site running more than one BLT
+// plugin, plus the family-wide update policy and the BLT mark. Required (and
+// registered) during load, not from a hook: the registry has to be complete
+// before the library elects a copy of itself on plugins_loaded priority 0, and
+// the update checker below needs BLT_Family_Updates while this file is still
+// running.
+require_once BLT_POPUPS_DIR . 'includes/blt-family/bootstrap.php';
+
+blt_family_register(
+	BLT_POPUPS_FILE,
+	array(
+		'name'    => 'BLT Popups',
+		'slug'    => 'blt-popups',
+		'version' => BLT_POPUPS_VERSION,
+		// This plugin's top-level menu is the popup CPT's own
+		// (edit.php?post_type=blt_popup), not an admin.php?page= screen, and the
+		// family overview links only the latter — so there is no page slug to
+		// hand it.
+		'menu'    => '',
+		// Only 'github' (the update-checker token). BLT Popups stores no
+		// third-party credential of its own, so it consumes nothing else.
+		'groups'  => array( 'github' ),
+	)
+);
 
 // ---------- Update checker ----------
 // Self-hosted updates served from GitHub release assets (the CI-built zip
@@ -44,14 +70,49 @@ require_once BLT_POPUPS_DIR . 'includes/lib/plugin-update-checker/plugin-update-
 $blt_popups_update_checker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
 	'https://github.com/S-FX-com/BLT-Popups/',
 	__FILE__,
-	'blt-popups'
+	'blt-popups',
+	BLT_Family_Updates::CHECK_PERIOD_HOURS
 );
 $blt_popups_update_checker->setBranch( 'main' );
 if ( defined( 'BLT_POPUPS_GITHUB_TOKEN' ) && is_string( BLT_POPUPS_GITHUB_TOKEN ) && '' !== BLT_POPUPS_GITHUB_TOKEN ) {
 	$blt_popups_update_checker->setAuthentication( BLT_POPUPS_GITHUB_TOKEN );
+} else {
+	// Lowest-precedence source: the shared BLT family store. The wp-config
+	// constant above always wins; this plugin keeps no GitHub token of its own,
+	// so there is no plugin option between the two.
+	//
+	// BLT_Family only exists after the library's version election on
+	// plugins_loaded priority 0, so the read is deferred to priority 1 rather
+	// than attempted here — the token is not needed until a check runs.
+	add_action(
+		'plugins_loaded',
+		function () use ( $blt_popups_update_checker ) {
+			if ( ! class_exists( 'BLT_Family' ) ) {
+				return;
+			}
+
+			$blt_popups_shared_token = BLT_Family::get( 'blt-popups', 'github', 'token' );
+
+			if ( is_string( $blt_popups_shared_token ) && '' !== $blt_popups_shared_token ) {
+				$blt_popups_update_checker->setAuthentication( $blt_popups_shared_token );
+			}
+		},
+		1
+	);
 }
 // Only accept the CI-built zip asset; ignore checksums/source archives.
 $blt_popups_update_checker->getVcsApi()->enableReleaseAssets( '/^blt-popups(-[\d.]+)?\.zip$/i' );
+
+// One automatic check per day, anchored to midnight site time; manual checks
+// (the Plugins-row link, Dashboard -> Updates, and the "Check for Updates"
+// action on the popup list screen) always run immediately.
+BLT_Family_Updates::apply(
+	$blt_popups_update_checker,
+	array(
+		'basename'  => plugin_basename( __FILE__ ),
+		'icons_url' => BLT_POPUPS_URL . 'assets/img/',
+	)
+);
 
 // ---------- Autoloader ----------
 spl_autoload_register(

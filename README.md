@@ -2,7 +2,7 @@
 
 Lightweight, single-purpose image popups for WordPress — scheduled, targeted, and cache-safe. One popup is live site-wide at a time; unlimited popups can be saved for reuse.
 
-Part of the **BLT** family of plugins by S-FX.com Small Business Solutions.
+Part of the **BLT** family of plugins by S-FX.com.
 
 ## Features
 
@@ -27,7 +27,9 @@ Part of the **BLT** family of plugins by S-FX.com Small Business Solutions.
 
 ## Automatic updates
 
-Updates are delivered from this repository's GitHub Releases via the bundled [plugin-update-checker](https://github.com/YahnisElsts/plugin-update-checker). While the repository is public no credentials are needed; for a private repository, define `BLT_POPUPS_GITHUB_TOKEN` in `wp-config.php`.
+Updates are delivered from this repository's GitHub Releases via the bundled [plugin-update-checker](https://github.com/YahnisElsts/plugin-update-checker). While the repository is public no credentials are needed; for a private repository, define `BLT_POPUPS_GITHUB_TOKEN` in `wp-config.php` — or, on a site running two or more BLT plugins, store the token once on the shared **BLT** screen and enable it for BLT Popups there. The wp-config constant always wins.
+
+Under the shared BLT update policy the automatic check runs at most once a day, anchored to midnight site time. Manual checks always run immediately: the **Check for Updates** link on the Plugins row, **Check again** on Dashboard → Updates, and the **Check for Updates** action on the **BLT Popups** list screen.
 
 ## Releases
 

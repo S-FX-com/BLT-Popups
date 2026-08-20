@@ -1,6 +1,83 @@
 /**
  * BLT Popups — admin editor + list-table styles.
+ *
+ * Loaded only on this plugin's own admin screens, always alongside the shared
+ * assets/css/blt-design-system.css (declared as a dependency), so every colour
+ * and radius below comes from that file's tokens rather than a literal.
+ *
+ * These screens are the popup CPT's list table and post editor, so they sit in
+ * WordPress's own list-table/postbox chrome rather than the design system's
+ * `.blt-ui` page shell — the second column of DESIGN.md §2. The meta boxes are
+ * tagged `.blt-card` (see BLT_Popups_Admin::add_postbox_class()) and styled
+ * here; the unscoped shared components (`.blt-badge`) are used as-is, and only
+ * the list-screen status panel, which this plugin renders itself, is wrapped in
+ * a real `.blt-ui` shell.
  */
+
+/* ---- Meta boxes as design-system cards ----
+ * Tagged via postbox_classes_blt_popup_*; `.blt-card` proper is scoped to
+ * `.blt-ui`, which a postbox is deliberately not inside, so the card chrome is
+ * spelled out here against WordPress's postbox DOM. */
+.postbox.blt-card {
+	border: 1px solid var(--blt-border);
+	border-radius: var(--blt-radius);
+	box-shadow: 0 1px 3px rgba( 0, 0, 0, 0.06 );
+}
+
+.postbox.blt-card .postbox-header {
+	border-bottom: 1px solid var(--blt-border);
+}
+
+.postbox.blt-card .postbox-header .hndle {
+	padding: 12px 16px;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--blt-fg);
+}
+
+.postbox.blt-card .inside {
+	margin: 0;
+	padding: 16px;
+}
+
+/* ---- List screen: status + updates panel ----
+ * Printed on admin_notices (see BLT_Popups_Admin::live_badge()); the `notice`
+ * class is only how core's common.js relocates it below the page title, so its
+ * chrome is stripped back off and the `.blt-card` inside supplies the frame. */
+.blt-popups-panel.notice {
+	padding: 0;
+	margin: 16px 0;
+	background: none;
+	border: 0;
+	box-shadow: none;
+}
+
+.blt-popups-list-panel .blt-card {
+	margin-bottom: 0;
+}
+
+.blt-popups-list-panel .blt-card-header h2 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.blt-popups-panel-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px 16px;
+}
+
+.blt-popups-panel-status {
+	font-size: 13px;
+	color: var(--blt-fg);
+}
+
+.blt-popups-list-panel .blt-admin-page-actions {
+	padding: 0;
+}
 
 /* ---- Sticky header bar ----
  * Docks just below the native admin bar (32px, WP core's own #wpadminbar
@@ -16,9 +93,9 @@
 	gap: 12px;
 	margin: 0 0 16px;
 	padding: 12px 16px;
-	background: #ffffff;
-	border: 1px solid #dcdcde;
-	border-radius: 8px;
+	background: var(--blt-surface);
+	border: 1px solid var(--blt-border);
+	border-radius: var(--blt-radius);
 	box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.04 );
 }
 
@@ -31,7 +108,7 @@
 }
 
 .blt-popup-topbar-back:hover {
-	color: #2271b1;
+	color: var(--blt-primary);
 }
 
 .blt-popup-topbar-title {
@@ -78,15 +155,15 @@
 	gap: 10px;
 	margin: 0 0 16px;
 	font-size: 13px;
-	color: #6c7781;
+	color: var(--blt-muted-fg);
 }
 
 /* ---- Numbered, collapsible settings sections ---- */
 .blt-popup-metabox .blt-popup-section {
-	border: 1px solid #dcdcde;
-	border-radius: 8px;
+	border: 1px solid var(--blt-border);
+	border-radius: var(--blt-radius);
 	margin: 0 0 16px;
-	background: #fff;
+	background: var(--blt-surface);
 	overflow: hidden;
 }
 
@@ -133,7 +210,7 @@
 	width: 26px;
 	height: 26px;
 	border-radius: 50%;
-	background: #2271b1;
+	background: var(--blt-primary);
 	color: #ffffff;
 	font-size: 13px;
 	font-weight: 700;
@@ -149,17 +226,17 @@
 .blt-popup-section-title {
 	font-size: 14px;
 	font-weight: 600;
-	color: #1d2327;
+	color: var(--blt-fg);
 }
 
 .blt-popup-section-desc {
 	font-size: 12px;
-	color: #6c7781;
+	color: var(--blt-muted-fg);
 }
 
 .blt-popup-section-body {
 	padding: 16px 18px 18px;
-	border-top: 1px solid #f0f0f1;
+	border-top: 1px solid var(--blt-surface-muted);
 }
 
 .blt-popup-field {
@@ -174,7 +251,9 @@
 .blt-popup-label {
 	display: block;
 	margin-bottom: 4px;
+	font-size: 13px;
 	font-weight: 600;
+	color: var(--blt-fg);
 }
 
 .blt-popup-inline {
@@ -205,7 +284,7 @@
 .blt-popup-section-body input[type="date"],
 .blt-popup-section-body input[type="time"],
 .blt-popup-section-body select {
-	border-radius: 6px;
+	border-radius: var(--blt-radius-sm);
 }
 
 /* ---- Popup animation: icon-button picker ---- */
@@ -233,9 +312,9 @@
 	align-items: center;
 	gap: 6px;
 	padding: 10px 6px;
-	border: 1px solid #dcdcde;
+	border: 1px solid var(--blt-border);
 	border-radius: 6px;
-	background: #ffffff;
+	background: var(--blt-surface);
 	color: #50575e;
 	text-align: center;
 }
@@ -246,13 +325,13 @@
 }
 
 .blt-popup-anim-option input:checked + .blt-popup-anim-card {
-	border-color: #2271b1;
-	background: #f0f6fb;
-	color: #2271b1;
+	border-color: var(--blt-primary);
+	background: var(--blt-primary-tint);
+	color: var(--blt-primary);
 }
 
 .blt-popup-anim-option input:focus-visible + .blt-popup-anim-card {
-	outline: 2px solid #2271b1;
+	outline: 2px solid var(--blt-primary);
 	outline-offset: 1px;
 }
 
@@ -266,7 +345,7 @@
 .blt-popup-segmented {
 	display: inline-flex;
 	border: 1px solid #8c8f94;
-	border-radius: 4px;
+	border-radius: var(--blt-radius-sm);
 	overflow: hidden;
 }
 
@@ -289,7 +368,7 @@
 	font-weight: 600;
 	font-size: 13px;
 	color: #50575e;
-	background: #f6f7f7;
+	background: var(--blt-surface-muted);
 	cursor: pointer;
 	user-select: none;
 }
@@ -299,12 +378,12 @@
 }
 
 .blt-popup-segmented-option input:checked + span {
-	background: #2271b1;
+	background: var(--blt-primary);
 	color: #ffffff;
 }
 
 .blt-popup-segmented-option input:focus-visible + span {
-	outline: 2px solid #2271b1;
+	outline: 2px solid var(--blt-primary);
 	outline-offset: 2px;
 }
 
@@ -323,14 +402,18 @@
 	height: 1px;
 }
 
+/* Same geometry and colours as the shared design system's `.blt-toggle`,
+ * respelled for this markup: the thumb here is the track's ::before, and the
+ * editor/list-table screens are outside the `.blt-ui` scope those rules need. */
 .blt-popup-switch-track {
 	position: relative;
-	width: 38px;
-	height: 22px;
-	border-radius: 11px;
-	background: #8c8f94;
+	width: 36px;
+	height: 18px;
+	border-radius: 9px;
+	background: var(--blt-surface);
+	border: 1px solid var(--blt-fg);
 	flex-shrink: 0;
-	transition: background 0.15s ease;
+	transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .blt-popup-switch-track::before {
@@ -338,29 +421,32 @@
 	position: absolute;
 	top: 2px;
 	left: 2px;
-	width: 18px;
-	height: 18px;
+	width: 12px;
+	height: 12px;
 	border-radius: 50%;
-	background: #ffffff;
-	transition: transform 0.15s ease;
-	box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.3 );
+	background: var(--blt-fg);
+	transition: transform 0.15s ease, background 0.15s ease;
 }
 
 .blt-popup-switch input:checked + .blt-popup-switch-track {
-	background: #2271b1;
+	background: var(--blt-primary);
+	border-color: var(--blt-primary);
 }
 
 .blt-popup-switch input:checked + .blt-popup-switch-track::before {
-	transform: translateX( 16px );
+	background: #ffffff;
+	transform: translateX( 18px );
 }
 
 .blt-popup-switch input:focus-visible + .blt-popup-switch-track {
-	outline: 2px solid #2271b1;
+	outline: 2px solid var(--blt-primary);
 	outline-offset: 2px;
 }
 
 .blt-popup-switch-label {
-	font-weight: 600;
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--blt-fg);
 }
 
 /* ---- Internal destination: predictive page search ---- */
@@ -377,9 +463,9 @@
 	right: 0;
 	margin: 2px 0 0;
 	padding: 4px 0;
-	background: #ffffff;
+	background: var(--blt-surface);
 	border: 1px solid #8c8f94;
-	border-radius: 4px;
+	border-radius: var(--blt-radius-sm);
 	box-shadow: 0 2px 8px rgba( 0, 0, 0, 0.15 );
 	max-height: 220px;
 	overflow-y: auto;
@@ -398,14 +484,14 @@
 
 .blt-popup-page-suggestion:hover,
 .blt-popup-page-suggestion.is-active {
-	background: #2271b1;
+	background: var(--blt-primary);
 	color: #ffffff;
 }
 
 .blt-popup-page-suggestion-empty {
 	padding: 7px 12px;
 	font-size: 13px;
-	color: #6c7781;
+	color: var(--blt-muted-fg);
 	font-style: italic;
 }
 
@@ -419,8 +505,8 @@
 .blt-popup-image-preview img {
 	max-width: 100%;
 	height: auto;
-	border: 1px solid #dcdcde;
-	border-radius: 4px;
+	border: 1px solid var(--blt-border);
+	border-radius: var(--blt-radius-sm);
 }
 
 .blt-popup-image-preview.is-empty {
@@ -437,9 +523,9 @@
 .blt-popup-device-tab {
 	flex: 1;
 	padding: 6px 8px;
-	border: 1px solid #dcdcde;
-	border-radius: 4px;
-	background: #f6f7f7;
+	border: 1px solid var(--blt-border);
+	border-radius: var(--blt-radius-sm);
+	background: var(--blt-surface-muted);
 	color: #50575e;
 	font-size: 12px;
 	font-weight: 600;
@@ -447,8 +533,8 @@
 }
 
 .blt-popup-device-tab.is-active {
-	background: #2271b1;
-	border-color: #2271b1;
+	background: var(--blt-primary);
+	border-color: var(--blt-primary);
 	color: #ffffff;
 }
 
@@ -456,7 +542,7 @@
 	position: relative;
 	height: 220px;
 	margin: 0 auto;
-	background: #1e1e1e;
+	background: var(--blt-fg);
 	border-radius: 6px;
 	overflow: hidden;
 	transition: width 0.15s ease;
@@ -557,7 +643,7 @@
 	justify-content: space-between;
 	gap: 8px;
 	padding: 8px 0;
-	border-bottom: 1px solid #f0f0f1;
+	border-bottom: 1px solid var(--blt-surface-muted);
 	font-size: 13px;
 }
 
@@ -567,45 +653,35 @@
 }
 
 .blt-popup-summary-label {
-	color: #6c7781;
+	color: var(--blt-muted-fg);
 }
 
 .blt-popup-summary-value {
 	font-weight: 600;
-	color: #1d2327;
+	color: var(--blt-fg);
 	text-align: right;
 }
 
 .blt-popup-duplicate {
 	margin: 12px 0 0;
 	padding-top: 12px;
-	border-top: 1px solid #f0f0f1;
+	border-top: 1px solid var(--blt-surface-muted);
 	font-size: 13px;
 	text-align: center;
 }
 
-/* ---- Status badges (list table + live notice + summary box) ---- */
-.blt-popup-badge {
-	display: inline-block;
-	padding: 3px 10px;
-	border-radius: 12px;
-	font-size: 12px;
-	font-weight: 600;
-	line-height: 1.6;
-}
-
+/* ---- Status badges (list table, status panel, summary box, title strip) ----
+ * Shape and size come from the shared, deliberately unscoped `.blt-badge`;
+ * only the two live/draft colourways are this plugin's. The class names are
+ * also the contract blt-popups-admin.js toggles after an AJAX status flip. */
 .blt-popup-badge-active {
-	background: #00a32a;
-	color: #ffffff;
+	background: var(--blt-success-bg);
+	color: var(--blt-success-fg);
 }
 
 .blt-popup-badge-draft {
-	background: #dcdcde;
-	color: #50575e;
-}
-
-.blt-popup-live-notice .blt-popup-badge {
-	margin-right: 6px;
+	background: var(--blt-neutral-bg);
+	color: var(--blt-neutral-fg);
 }
 
 /* ---- List-table quick toggle ---- */
@@ -617,12 +693,6 @@
 
 .blt-popup-list-toggle .blt-popup-switch-track {
 	width: 32px;
-	height: 18px;
-}
-
-.blt-popup-list-toggle .blt-popup-switch-track::before {
-	width: 14px;
-	height: 14px;
 }
 
 .blt-popup-list-toggle input:checked + .blt-popup-switch-track::before {

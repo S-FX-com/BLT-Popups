@@ -62,7 +62,18 @@ class BLT_Popups_CPT {
 				'has_archive'         => false,
 				'rewrite'             => false,
 				'query_var'           => false,
-				'menu_icon'           => 'dashicons-cover-image',
+				// The BLT mark, not a dashicon — the family brand on the one
+				// top-level menu this plugin adds. Falls back to the dashicon
+				// it replaced if the bundled SVG is ever missing. The hover /
+				// current-section brightening core gives dashicons is restored
+				// by BLT_Popups_Admin::print_menu_icon_style().
+				//
+				// Read only in wp-admin: a menu icon is an admin-only concern,
+				// and this CPT is registered on every front-end request too —
+				// no reason to read and base64 the SVG there.
+				'menu_icon'           => ( is_admin() && class_exists( 'BLT_Family_Brand' ) )
+					? BLT_Family_Brand::menu_icon( BLT_POPUPS_DIR, 'dashicons-cover-image' )
+					: 'dashicons-cover-image',
 				'menu_position'       => 25,
 				'capability_type'     => 'post',
 				'map_meta_cap'        => true,
